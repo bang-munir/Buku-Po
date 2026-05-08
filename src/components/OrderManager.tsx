@@ -4,7 +4,7 @@ import {
   Edit2, X, AlertCircle, Wallet, Clock, Calendar,
   Users, RotateCcw
 } from 'lucide-react';
-import { AppState, Order, OrderItem, Product, OrderStatus, LocationType, CustomerDeposit } from '../types';
+import { AppState, Order, OrderItem, Product, OrderStatus, LocationType, CustomerDeposit } from '@/types';
 // Fix: Remove unused dbService import
 // import { dbService } from '../services/dbService';
 

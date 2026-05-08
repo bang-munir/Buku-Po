@@ -6,18 +6,18 @@ import {
   LayoutDashboard, Users, Box, ShoppingCart, BarChart3, 
   Menu, Loader2, FilePlus, RefreshCw, Wallet, FileText
 } from 'lucide-react';
-import { AppState, Order, ViewType } from './types';
-import Dashboard from './components/Dashboard';
-import CustomerManager from './components/CustomerManager';
-import ProductManager from './components/ProductManager';
-import OrderManager from './components/OrderManager';
-import InvoiceView from './components/InvoiceView';
-import Reports from './components/Reports';
-import InvoiceBook from './components/InvoiceBook';
-import ManualInvoiceManager from './components/ManualInvoiceManager';
-import PaymentManager from './components/PaymentManager';
-import { dbService } from './services/dbService';
-import { checkSupabaseConnection } from './lib/supabase';
+import { AppState, Order, ViewType } from '@/types';
+import Dashboard from '@/components/Dashboard';
+import CustomerManager from '@/components/CustomerManager';
+import ProductManager from '@/components/ProductManager';
+import OrderManager from '@/components/OrderManager';
+import InvoiceView from '@/components/InvoiceView';
+import Reports from '@/components/Reports';
+import InvoiceBook from '@/components/InvoiceBook';
+import ManualInvoiceManager from '@/components/ManualInvoiceManager';
+import PaymentManager from '@/components/PaymentManager';
+import { dbService } from '@/services/dbService';
+import { checkSupabaseConnection } from '@/lib/supabase';
 
 const APP_LOGO_SVG = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiI+CiAgPHJlY3QgeD0iNTAiIHk9IjcwIiB3aWR0aD0iNDEyIiBoZWlnaHQ9IjQxMiIgcng9IjQwIiBmaWxsPSIjZDkwMDAwIiAvPgogIDxwYXRoIGQ9Ik0xMDAgMTEwIEg0MTIgVjQwMCBMMzgyIDQzMCBIMTAwIFoiIGZpbGw9IndoaXRlIiAvPgogIDx0ZXh0IHg9IjI0NSIgeT0iMjY1IiBmb250LWZhbWlseT0iQXJpYWwgQmxhY2siIGZvbnQtd2VpZ2h0PSI5MDAiIGZvbnQtc2l6ZT0iMTE1IiBmaWxsPSIjZDkwMDAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5QTzwvdGV4dD4KICA8cmVjdCB4PSIxODAiIHk9IjMwIiB3aWR0aD0iMTUyIiBoZWlnaHQ9IjcwIiByeD0iMTUiIGZpbGw9IiM5OTk5OTkiIC8+Cjwvc3ZnPg==";
 

@@ -1,5 +1,5 @@
-import { supabase } from '../lib/supabase';
-import { Customer, Product, Order, CustomerDeposit, Category } from '../types';
+import { supabase } from '@/lib/supabase';
+import { Customer, Product, Order, CustomerDeposit, Category } from '@/types';
 
 export const dbService = {
   // --- CUSTOMERS ---

@@ -1,9 +1,12 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { Order } from "../types";
+import { Order } from "@/types";
 
 export const getSmartOrderSummary = async (order: Order): Promise<string> => {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const env = (import.meta as any).env;
+  const processEnv = typeof process !== 'undefined' ? (process as any).env : {};
+  const apiKey = env.VITE_GEMINI_API_KEY || processEnv.GEMINI_API_KEY || processEnv.API_KEY;
+  
   if (!apiKey) {
     return "Ringkasan otomatis tidak aktif (API Key belum diatur di server).";
   }
@@ -12,7 +15,7 @@ export const getSmartOrderSummary = async (order: Order): Promise<string> => {
     const ai = new GoogleGenAI({ apiKey });
     
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: `Buat ringkasan pesanan singkat dalam 1-2 kalimat ramah untuk pelanggan ${order.customerName}. 
         Invoice: ${order.invoiceNumber}. 
         Total Belanja: Rp ${order.subtotal.toLocaleString()}. 

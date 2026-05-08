@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef } from 'react';
-import { AppState } from '../types';
+import { AppState } from '@/types';
 import { 
   Trophy, Search, FileText, Image as ImageIcon, 
   PieChart, TrendingUp, Users, Eye, Edit, Trash2, ChevronRight
@@ -7,7 +7,7 @@ import {
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { savePDF } from '../lib/pdfUtils';
+import { savePDF } from '@/lib/pdfUtils';
 
 interface ReportsProps {
   state: AppState;
