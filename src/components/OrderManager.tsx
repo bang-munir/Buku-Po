@@ -349,7 +349,7 @@ const OrderManager: React.FC<Props> = ({
                       {state.products.filter(p => (p.name || '').toLowerCase().includes(productSearch.toLowerCase())).map(p => (
                         <button key={p.id} type="button" onClick={() => addProductToItems(p)} className="w-full text-left px-4 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 font-bold text-[10px] flex justify-between items-center transition-colors">
                           <span className="text-slate-700">{p.name}</span>
-                          <span className="text-[8px] font-black text-indigo-500 uppercase">Rp {p.price?.toLocaleString()}</span>
+                          <span className="text-[8px] font-black text-indigo-500 uppercase">Rp {(state.customers.find(c => c.id === selectedCustomerId)?.type === LocationType.LUAR_KOTA ? p.priceLuarKota : p.priceJakarta).toLocaleString()}</span>
                         </button>
                       ))}
                     </div>

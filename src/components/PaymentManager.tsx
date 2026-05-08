@@ -422,7 +422,7 @@ const PaymentManager: React.FC<Props> = ({
           };
         } else {
           const oldAmount = editingPayment.payment.amount;
-          const isDepositPayment = editingPayment.payment.note.includes('[Potong DP]');
+          const isDepositPayment = editingPayment.payment.note?.includes('[Potong DP]');
           
           if (isDepositPayment) {
             const diff = amount - oldAmount;

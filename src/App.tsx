@@ -261,7 +261,6 @@ const App: React.FC = () => {
                 }} 
                 onDeleteOrder={deleteOrderWithRefund} 
                 onUpdateDeposit={(d) => dbService.upsertDeposit(d).then(() => loadAllData(true))}
-                onAddDeposit={(d) => dbService.upsertDeposit(d).then(() => loadAllData(true))}
                 onViewInvoice={(o) => setState(p => ({...p, activeOrder: o, view: 'invoice_detail', invoiceMode: 'full', lastShipmentQtys: null, lastShipmentDP: null, autoDownloadInvoice: false}))} 
                 onViewShippingInvoice={(o, qtys, dp) => setState(p => ({...p, activeOrder: o, view: 'invoice_detail', invoiceMode: 'shipping', lastShipmentQtys: qtys || null, lastShipmentDP: dp || null, autoDownloadInvoice: false}))}
                 onNotify={showNotify}

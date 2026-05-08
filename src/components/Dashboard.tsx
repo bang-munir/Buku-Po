@@ -130,7 +130,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
             <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-slate-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700"></div>
             <div className="relative z-10 space-y-4">
               <div className={`${stat.color} w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg`}>
-                {React.cloneElement(stat.icon as React.ReactElement, { size: 18 })}
+                {React.cloneElement(stat.icon as React.ReactElement<any>, { size: 18 })}
               </div>
               <div className="space-y-1">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">{stat.label}</p>

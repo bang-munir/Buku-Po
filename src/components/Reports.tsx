@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef } from 'react';
-import { AppState } from '@/types';
+import { AppState, OrderStatus } from '@/types';
 import { 
   Trophy, Search, FileText, Image as ImageIcon, 
   PieChart, TrendingUp, Users, Eye, Edit, Trash2, ChevronRight
@@ -61,8 +61,7 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
       }
       const matchesCustomer = filterCustomer === 'all' || order.customerId === filterCustomer;
       const matchesStatus = filterStatus === 'ALL' || 
-        (filterStatus === 'SHIPPED_COMPLETED' && (order.status === 'SHIPPED' || order.status === 'COMPLETED')) ||
-        order.status === filterStatus;
+        (filterStatus === 'SHIPPED_COMPLETED' && (order.status === OrderStatus.SHIPPED || order.status === OrderStatus.COMPLETED));
       const searchLower = searchTerm.toLowerCase().trim();
       const matchesSearch = searchTerm === '' || 
         (order.customerName || '').toLowerCase().includes(searchLower) || 

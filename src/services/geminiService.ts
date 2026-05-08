@@ -3,16 +3,14 @@ import { GoogleGenAI } from "@google/genai";
 import { Order } from "@/types";
 
 export const getSmartOrderSummary = async (order: Order): Promise<string> => {
-  const env = (import.meta as any).env;
-  const processEnv = typeof process !== 'undefined' ? (process as any).env : {};
-  const apiKey = env.VITE_GEMINI_API_KEY || processEnv.GEMINI_API_KEY || processEnv.API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
     return "Ringkasan otomatis tidak aktif (API Key belum diatur di server).";
   }
 
   try {
-    const ai = new GoogleGenAI(apiKey);
+    const ai = new GoogleGenAI({ apiKey });
     
     const result = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
