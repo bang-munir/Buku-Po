@@ -334,7 +334,7 @@ function gen_uuid() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID();
     }
-  } catch (_unused) {
+  } catch {
     // Fallback to manual generation
   }
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
