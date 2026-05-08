@@ -1,6 +1,6 @@
 {
   "name": "Buku Po",
-  "description": "",
+  "description": "A comprehensive Order Management System for tracking inventory, customers, and invoices with PDF/JPG export support.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
