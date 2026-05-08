@@ -23,7 +23,7 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
   const [endDate, setEndDate] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'SHIPPED_COMPLETED'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<OrderStatus | 'ALL' | 'SHIPPED_COMPLETED'>('ALL');
 
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
@@ -60,8 +60,9 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
         matchesTime = matchesTime && orderDate <= end;
       }
       const matchesCustomer = filterCustomer === 'all' || order.customerId === filterCustomer;
-      const matchesStatus = filterStatus === 'ALL' || 
-        (filterStatus === 'SHIPPED_COMPLETED' && (order.status === OrderStatus.SHIPPED || order.status === OrderStatus.COMPLETED));
+      const matchesStatus = filterStatus as string === 'ALL' || 
+        (filterStatus === 'SHIPPED_COMPLETED' && (order.status === OrderStatus.SHIPPED || order.status === OrderStatus.COMPLETED)) ||
+        (order.status as string) === (filterStatus as string);
       const searchLower = searchTerm.toLowerCase().trim();
       const matchesSearch = searchTerm === '' || 
         (order.customerName || '').toLowerCase().includes(searchLower) || 
