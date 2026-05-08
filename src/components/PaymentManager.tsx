@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { savePDF } from '../lib/pdfUtils';
+import { savePDF } from '@/lib/pdfUtils';
 import { AppState, Order, OrderStatus, PaymentRecord, CustomerDeposit } from '@/types';
 
 interface Props {

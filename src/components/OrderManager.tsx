@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { AppState, Order, OrderItem, Product, OrderStatus, LocationType, CustomerDeposit } from '@/types';
 // Fix: Remove unused dbService import
-// import { dbService } from '../services/dbService';
+// import { dbService } from '@/services/dbService';
 
 interface Props {
   state: AppState;

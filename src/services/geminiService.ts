@@ -12,9 +12,9 @@ export const getSmartOrderSummary = async (order: Order): Promise<string> => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI(apiKey);
     
-    const response = await ai.models.generateContent({
+    const result = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Buat ringkasan pesanan singkat dalam 1-2 kalimat ramah untuk pelanggan ${order.customerName}. 
         Invoice: ${order.invoiceNumber}. 
@@ -23,7 +23,7 @@ export const getSmartOrderSummary = async (order: Order): Promise<string> => {
         Detail Barang: ${order.items.map(i => `${i.name} (Pesan: ${i.quantity}, Proses: ${i.processingQuantity}, Kirim: ${i.shippedQuantity})`).join(', ')}.`
     });
     
-    const text = response.text;
+    const text = result.text;
 
     return text || "Pesanan telah dikonfirmasi dengan rincian di atas.";
   } catch (error: any) {
