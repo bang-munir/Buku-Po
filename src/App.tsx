@@ -7,7 +7,7 @@ import {
   Menu, Loader2, FilePlus, RefreshCw, Wallet, FileText
 } from 'lucide-react';
 import { AppState, Order, ViewType } from './types';
-import MainDashboard from './components/MainDashboard';
+import Dashboard from './components/Dashboard';
 import CustomerManager from './components/CustomerManager';
 import ProductManager from './components/ProductManager';
 import OrderManager from './components/OrderManager';
@@ -219,7 +219,7 @@ const App: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto no-scrollbar p-3 md:p-4 lg:p-5">
           <div className="max-w-7xl mx-auto">
-            {state.view === 'dashboard' && <MainDashboard state={state} onNavigate={setView} />}
+            {state.view === 'dashboard' && <Dashboard state={state} onNavigate={setView} />}
             {state.view === 'manual_invoice' && (
               <ManualInvoiceManager 
                 products={state.products} 
