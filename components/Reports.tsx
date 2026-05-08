@@ -90,30 +90,6 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
     };
   }, [filteredOrders]);
 
-  const periodicOmzet = useMemo(() => {
-    const now = new Date();
-    
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0,0,0,0);
-
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
-
-    let weekRev = 0;
-    let monthRev = 0;
-    let yearRev = 0;
-
-    state.orders.forEach(o => {
-      const d = new Date(o.orderDate);
-      if (d >= startOfWeek) weekRev += (o.subtotal || 0);
-      if (d >= startOfMonth) monthRev += (o.subtotal || 0);
-      if (d >= startOfYear) yearRev += (o.subtotal || 0);
-    });
-
-    return { weekRev, monthRev, yearRev };
-  }, [state.orders]);
-
   const productSales = useMemo(() => {
     const salesMap: Record<string, { name: string, qty: number }> = {};
     filteredOrders.forEach(order => {
@@ -216,32 +192,14 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
       doc.setFont('helvetica', 'italic');
       doc.text(`Periode: ${startDate || 'Semua'} s/d ${endDate || 'Sekarang'} | Filter: ${filterStatus} | ${stats.orderCount} Transaksi`, margin, cardY + cardH + 8);
 
-      // 3. Periodic Omzet Section
-      const omzetY = 95;
-      doc.setFillColor(255, 255, 255);
-      doc.setDrawColor(226, 232, 240); // Slate-200
-      doc.roundedRect(margin, omzetY, pageWidth - (margin * 2), 20, 2, 2, 'D');
-      
-      doc.setFontSize(7);
-      doc.setTextColor(100, 116, 139);
-      doc.setFont('helvetica', 'bold');
-      doc.text('RINGKASAN OMZET BERKALA', margin + 5, omzetY + 6);
-
-      const colW = (pageWidth - (margin * 2)) / 3;
-      doc.setFontSize(9);
-      doc.setTextColor(51, 65, 85);
-      doc.text(`7 Hari: Rp ${periodicOmzet.weekRev.toLocaleString()}`, margin + 5, omzetY + 14);
-      doc.text(`30 Hari: Rp ${periodicOmzet.monthRev.toLocaleString()}`, margin + 5 + colW, omzetY + 14);
-      doc.text(`Tahun: Rp ${periodicOmzet.yearRev.toLocaleString()}`, margin + 5 + (colW * 2), omzetY + 14);
-
       // 4. Products Table
       doc.setFontSize(11);
       doc.setTextColor(30, 41, 59);
       doc.setFont('helvetica', 'bold');
-      doc.text('LAPORAN PRODUK TERLARIS', margin, 128);
+      doc.text('LAPORAN PRODUK TERLARIS', margin, 100);
 
       autoTable(doc, {
-        startY: 133,
+        startY: 105,
         head: [['Rank', 'Nama Produk', 'Jumlah Terjual']],
         body: productSales.slice(0, 10).map((p, i) => [
           { content: `#${i + 1}`, styles: { fontStyle: 'bold', textColor: [79, 70, 229] } },
@@ -335,16 +293,24 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
            </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 border-t border-slate-50 pt-3">
-          <div className="space-y-1">
-            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Rentang</label>
-            <div className="flex gap-1">
-              {['today', 'week', 'month', 'year'].map(t => (
-                <button key={t} onClick={() => setPreset(t as any)} className="flex-1 px-1 py-1 bg-slate-50 border border-slate-100 rounded text-[8px] font-black text-slate-500 uppercase hover:bg-white hover:text-indigo-600">
-                  {t === 'today' ? 'HARI INI' : t === 'week' ? '7H' : t === 'month' ? '30H' : '1TH'}
-                </button>
-              ))}
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 border-t border-slate-50 pt-3">
+          <div className="space-y-1 sm:col-span-1 lg:col-span-1">
+            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Dari Tanggal</label>
+            <input 
+              type="date" 
+              className="w-full px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[9px] font-black text-slate-600 outline-none" 
+              value={startDate} 
+              onChange={e => setStartDate(e.target.value)} 
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-1 lg:col-span-1">
+            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sampai Tanggal</label>
+            <input 
+              type="date" 
+              className="w-full px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[9px] font-black text-slate-600 outline-none" 
+              value={endDate} 
+              onChange={e => setEndDate(e.target.value)} 
+            />
           </div>
           <div className="space-y-1">
             <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Pelanggan</label>
@@ -418,27 +384,6 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
                   <h2 className="text-sm font-black text-slate-900">{stats.orderCount} Order</h2>
                 </div>
              </div>
-        </div>
-
-        <div className="bg-slate-900 p-6 rounded-2xl text-white shadow-xl">
-           <div className="flex items-center gap-2 mb-4">
-              <TrendingUp size={16} className="text-indigo-400" />
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em]">Ringkasan Omzet Berkala</h3>
-           </div>
-           <div className="grid grid-cols-3 gap-4">
-              <div>
-                 <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Minggu Ini</p>
-                 <p className="text-sm font-black text-indigo-300">Rp {periodicOmzet.weekRev.toLocaleString()}</p>
-              </div>
-              <div>
-                 <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Bulan Ini</p>
-                 <p className="text-sm font-black text-emerald-400">Rp {periodicOmzet.monthRev.toLocaleString()}</p>
-              </div>
-              <div>
-                 <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tahun Ini</p>
-                 <p className="text-sm font-black text-amber-400">Rp {periodicOmzet.yearRev.toLocaleString()}</p>
-              </div>
-           </div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
