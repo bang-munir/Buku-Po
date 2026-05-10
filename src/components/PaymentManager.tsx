@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   History, Search, 
-  X, Landmark, UserPlus, Trash2, Edit2, Download, FileText
+  X, Landmark, UserPlus, Trash2, Edit2, Download, FileText, Calendar
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -28,6 +28,7 @@ const PaymentManager: React.FC<Props> = ({
   onViewInvoice
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterMonth, setFilterMonth] = useState<string>(''); // format: YYYY-MM
   
   // States for Order Payment
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -41,6 +42,33 @@ const PaymentManager: React.FC<Props> = ({
   const [historyCustomerId, setHistoryCustomerId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  const monthsList = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+      list.push({ val, label });
+    }
+    return list;
+  }, []);
+
+  const handleMonthChange = (val: string) => {
+    setFilterMonth(val);
+    if (val) {
+      const [year, month] = val.split('-').map(Number);
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0); // last day of month
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      setStartDate(formatDate(start));
+      setEndDate(formatDate(end));
+    } else {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [depositAmount, setDepositAmount] = useState<number | string>('');
   const [depositDate, setDepositDate] = useState(new Date().toISOString().split('T')[0]);
@@ -56,6 +84,9 @@ const PaymentManager: React.FC<Props> = ({
     let totalLifetimeDeposit = 0;
     let totalUsedDeposit = 0;
     let totalAvailableDeposit = 0;
+
+    // Period specific stats
+    let periodDepositIn = 0;
     
     state.orders.forEach(o => {
       const dp = Number(o.downPayment || 0);
@@ -76,14 +107,41 @@ const PaymentManager: React.FC<Props> = ({
       // Uang yang masuk ke deposit tapi belum terpakai adalah bagian dari kas masuk
       // (Asumsi: uang fisik sudah diterima saat deposit dicatat)
       totalCollected += (d.amount - d.usedAmount); 
+      
+      // Period filter for stats
+      const dDate = new Date(d.date);
+      let match = true;
+      if (startDate && dDate < new Date(startDate)) match = false;
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59);
+        if (dDate > end) match = false;
+      }
+      if (match) periodDepositIn += d.amount;
     });
 
-    return { totalCollected, totalReceivable, totalLifetimeDeposit, totalUsedDeposit, totalAvailableDeposit };
-  }, [state.orders, state.deposits]);
+    return { totalCollected, totalReceivable, totalLifetimeDeposit, totalUsedDeposit, totalAvailableDeposit, periodDepositIn };
+  }, [state.orders, state.deposits, startDate, endDate]);
 
   const customerDeposits = useMemo(() => {
     const map: Record<string, { id: string, name: string, total: number, used: number }> = {};
-    state.deposits.forEach(d => {
+    
+    // Filter deposits based on global startDate/endDate
+    let filteredDeps = state.deposits;
+    if (startDate || endDate) {
+      filteredDeps = state.deposits.filter(d => {
+        const dDate = new Date(d.date);
+        if (startDate && dDate < new Date(startDate)) return false;
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59);
+          if (dDate > end) return false;
+        }
+        return true;
+      });
+    }
+
+    filteredDeps.forEach(d => {
       if (!map[d.customerId]) {
          const customer = state.customers.find(c => c.id === d.customerId);
          map[d.customerId] = { id: d.customerId, name: d.customerName || customer?.name || 'Unknown', total: 0, used: 0 };
@@ -94,7 +152,7 @@ const PaymentManager: React.FC<Props> = ({
     return Object.values(map).filter(d => 
       (d.name || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [state.deposits, state.customers, searchTerm]);
+  }, [state.deposits, state.customers, searchTerm, startDate, endDate]);
 
   // Combine Deposit and Usage for individual customer history
   const customerLedger = useMemo(() => {
@@ -516,7 +574,7 @@ const PaymentManager: React.FC<Props> = ({
   return (
     <div className="space-y-8 pb-24 animate-in fade-in duration-500">
       {/* Header & Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
          <div className="bg-indigo-50 p-5 rounded-[2rem] border border-indigo-100 shadow-sm flex items-center justify-between">
             <div>
                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Total DP Masuk</p>
@@ -524,6 +582,15 @@ const PaymentManager: React.FC<Props> = ({
             </div>
             <div className="bg-white p-3 rounded-2xl text-indigo-400">
                <History size={24} />
+            </div>
+         </div>
+         <div className="bg-sky-50 p-5 rounded-[2rem] border border-sky-100 shadow-sm flex items-center justify-between">
+            <div>
+               <p className="text-[10px] font-black text-sky-500 uppercase tracking-[0.2em]">{filterMonth ? monthsList.find(m => m.val === filterMonth)?.label : (startDate ? 'Periode Dipilih' : 'Semua Waktu')}</p>
+               <h2 className="text-2xl font-black text-sky-600 tracking-tighter leading-tight">Rp {financialStats.periodDepositIn.toLocaleString()}</h2>
+            </div>
+            <div className="bg-white p-3 rounded-2xl text-sky-500">
+               <Calendar size={24} />
             </div>
          </div>
          <div className="bg-emerald-50 p-5 rounded-[2rem] border border-emerald-100 shadow-sm flex items-center justify-between">
@@ -538,28 +605,66 @@ const PaymentManager: React.FC<Props> = ({
       </div>
 
       <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 md:p-5 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-3">
-           <div>
-              <h3 className="text-sm font-black text-slate-900 uppercase">Input DP Masuk</h3>
-           </div>
-           <div className="flex gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-48">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-                <input type="text" placeholder="Cari..." className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-xs font-bold outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        <div className="p-4 md:p-5 border-b border-slate-50 space-y-4">
+           <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+              <div>
+                 <h3 className="text-sm font-black text-slate-900 uppercase">Input DP Masuk</h3>
               </div>
-              <button 
-                onClick={() => {
-                  setEditingDeposit(null);
-                  setSelectedCustomerId('');
-                  setDepositAmount('');
-                  setDepositDate(new Date().toISOString().split('T')[0]);
-                  setDepositNote('');
-                  setIsDepositModalOpen(true);
-                }} 
-                className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-lg"
-              >
-                  <UserPlus size={14}/> Terima
-              </button>
+              <div className="flex gap-2 w-full sm:w-auto">
+                 <div className="relative flex-1 sm:w-48">
+                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
+                   <input type="text" placeholder="Cari..." className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-xs font-bold outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                 </div>
+                 <button 
+                   onClick={() => {
+                     setEditingDeposit(null);
+                     setSelectedCustomerId('');
+                     setDepositAmount('');
+                     setDepositDate(new Date().toISOString().split('T')[0]);
+                     setDepositNote('');
+                     setIsDepositModalOpen(true);
+                   }} 
+                   className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-lg"
+                 >
+                     <UserPlus size={14}/> Terima
+                 </button>
+              </div>
+           </div>
+
+           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-50">
+              <div className="space-y-1">
+                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                    <Calendar size={10} className="text-indigo-400" /> Pilih Bulan
+                 </label>
+                 <select 
+                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20" 
+                    value={filterMonth} 
+                    onChange={e => handleMonthChange(e.target.value)}
+                 >
+                    <option value="">CUSTOM RANGE</option>
+                    {monthsList.map(m => (
+                       <option key={m.val} value={m.val}>{m.label}</option>
+                    ))}
+                 </select>
+              </div>
+              <div className="space-y-1">
+                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Dari Tanggal</label>
+                 <input 
+                    type="date" 
+                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20" 
+                    value={startDate} 
+                    onChange={e => { setStartDate(e.target.value); setFilterMonth(''); }} 
+                 />
+              </div>
+              <div className="space-y-1">
+                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sampai Tanggal</label>
+                 <input 
+                    type="date" 
+                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20" 
+                    value={endDate} 
+                    onChange={e => { setEndDate(e.target.value); setFilterMonth(''); }} 
+                 />
+              </div>
            </div>
         </div>
 
