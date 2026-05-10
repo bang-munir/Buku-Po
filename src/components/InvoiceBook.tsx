@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppState, Order, OrderStatus, ViewType } from '@/types';
-import { Search, Download, FileText, ChevronRight, Printer, User, Edit2, Trash2, RotateCcw } from 'lucide-react';
+import { Search, Download, FileText, ChevronRight, Printer, User, Edit2, Trash2, RotateCcw, Calendar } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { savePDF } from '@/lib/pdfUtils';
@@ -25,7 +25,20 @@ const InvoiceBook: React.FC<InvoiceBookProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('all');
+  const [filterMonth, setFilterMonth] = useState<string>(''); // format: YYYY-MM
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  const monthsList = React.useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+      list.push({ val, label });
+    }
+    return list;
+  }, []);
 
   // Filter orders that are SHIPPED or COMPLETED (meaning they have been "sent" as invoices)
   const bookOrders = state.orders.filter(order => 
@@ -37,7 +50,15 @@ const InvoiceBook: React.FC<InvoiceBookProps> = ({
       order.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCustomer = filterCustomer === 'all' || order.customerId === filterCustomer;
-    return matchesSearch && matchesCustomer;
+    
+    let matchesMonth = true;
+    if (filterMonth) {
+      const orderDate = new Date(order.orderDate);
+      const monthPrefix = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+      matchesMonth = monthPrefix === filterMonth;
+    }
+
+    return matchesSearch && matchesCustomer && matchesMonth;
   });
 
   const downloadPDF = async (ordersToExport: Order[], title: string) => {
@@ -179,7 +200,7 @@ const InvoiceBook: React.FC<InvoiceBookProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 lg:min-w-[240px]">
+            <div className="relative flex-1 lg:min-w-[200px]">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input
                 type="text"
@@ -190,7 +211,21 @@ const InvoiceBook: React.FC<InvoiceBookProps> = ({
               />
             </div>
 
-            <div className="relative min-w-[160px]">
+            <div className="relative min-w-[150px]">
+              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <select
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-xs font-black appearance-none focus:ring-2 focus:ring-indigo-500/20"
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+              >
+                <option value="">SEMUA BULAN</option>
+                {monthsList.map(m => (
+                  <option key={m.val} value={m.val}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="relative min-w-[150px]">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <select
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-xs font-black appearance-none focus:ring-2 focus:ring-indigo-500/20"

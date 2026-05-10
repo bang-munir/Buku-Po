@@ -2,7 +2,7 @@ import React, { useMemo, useState, useRef } from 'react';
 import { AppState, OrderStatus } from '@/types';
 import { 
   Trophy, Search, FileText, Image as ImageIcon, 
-  PieChart, TrendingUp, Users, Eye, Edit, Trash2, ChevronRight
+  PieChart, TrendingUp, Users, Eye, Edit, Trash2, ChevronRight, Calendar
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -23,7 +23,20 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
   const [endDate, setEndDate] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterMonth, setFilterMonth] = useState<string>(''); // format: YYYY-MM
   const [filterStatus, setFilterStatus] = useState<OrderStatus | 'ALL' | 'SHIPPED_COMPLETED'>('ALL');
+
+  const monthsList = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+      list.push({ val, label });
+    }
+    return list;
+  }, []);
 
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
@@ -42,6 +55,21 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
     else if (type === 'year') start.setFullYear(end.getFullYear() - 1);
     setStartDate(formatDate(start));
     setEndDate(formatDate(end));
+    setFilterMonth('');
+  };
+
+  const handleMonthChange = (val: string) => {
+    setFilterMonth(val);
+    if (val) {
+      const [year, month] = val.split('-').map(Number);
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0); // last day of month
+      setStartDate(formatDate(start));
+      setEndDate(formatDate(end));
+    } else {
+      setStartDate('');
+      setEndDate('');
+    }
   };
 
   const filteredOrders = useMemo(() => {
@@ -298,23 +326,39 @@ const Reports: React.FC<ReportsProps> = ({ state, onViewInvoice, onDeleteOrder, 
            </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 border-t border-slate-50 pt-3">
-          <div className="space-y-1 sm:col-span-1 lg:col-span-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 border-t border-slate-50 pt-3">
+          <div className="space-y-1">
+            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Pilih Bulan</label>
+            <div className="relative">
+              <select 
+                className="w-full pl-8 pr-2 py-1 bg-slate-50 border border-slate-100 rounded text-[9px] font-black text-slate-600 outline-none appearance-none" 
+                value={filterMonth} 
+                onChange={e => handleMonthChange(e.target.value)}
+              >
+                <option value="">CUSTOM RANGE</option>
+                {monthsList.map(m => (
+                  <option key={m.val} value={m.val}>{m.label}</option>
+                ))}
+              </select>
+              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+            </div>
+          </div>
+          <div className="space-y-1">
             <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Dari Tanggal</label>
             <input 
               type="date" 
               className="w-full px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[9px] font-black text-slate-600 outline-none" 
               value={startDate} 
-              onChange={e => setStartDate(e.target.value)} 
+              onChange={e => { setStartDate(e.target.value); setFilterMonth(''); }} 
             />
           </div>
-          <div className="space-y-1 sm:col-span-1 lg:col-span-1">
+          <div className="space-y-1">
             <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sampai Tanggal</label>
             <input 
               type="date" 
               className="w-full px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[9px] font-black text-slate-600 outline-none" 
               value={endDate} 
-              onChange={e => setEndDate(e.target.value)} 
+              onChange={e => { setEndDate(e.target.value); setFilterMonth(''); }} 
             />
           </div>
           <div className="space-y-1">
