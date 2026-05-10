@@ -1,47 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User, Lock, Mail, Save, Loader2, LogOut, ShieldCheck, Check } from 'lucide-react';
+import { User, Lock, Save, Loader2, LogOut, ShieldCheck, Check } from 'lucide-react';
 
 interface Props {
   onNotify: (msg: string, type: any) => void;
+  onUpdateUser?: (user: any) => void;
 }
 
-const Settings: React.FC<Props> = ({ onNotify }) => {
+const Settings: React.FC<Props> = ({ onNotify, onUpdateUser }) => {
   const [user, setUser] = useState<any>(null);
-  const [newEmail, setNewEmail] = useState('');
+  const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [loadingUsername, setLoadingUsername] = useState(false);
   const [loadingPassword, setLoadingPassword] = useState(false);
 
   useEffect(() => {
     const savedSession = localStorage.getItem('app_session');
     if (savedSession) {
       setUser(JSON.parse(savedSession));
-      setNewEmail(JSON.parse(savedSession).username || '');
+      setNewUsername(JSON.parse(savedSession).username || '');
     }
   }, []);
 
-  const handleUpdateEmail = async (e: React.FormEvent) => {
+  const handleUpdateUsername = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoadingEmail(true);
+    setLoadingUsername(true);
     try {
       const { error } = await supabase
         .from('app_users')
-        .update({ username: newEmail })
+        .update({ username: newUsername })
         .eq('id', user.id);
         
       if (error) throw error;
       
-      const updatedUser = { ...user, username: newEmail };
+      const updatedUser = { ...user, username: newUsername };
       setUser(updatedUser);
       localStorage.setItem('app_session', JSON.stringify(updatedUser));
+      if (onUpdateUser) onUpdateUser(updatedUser);
       onNotify('Username berhasil diubah.', 'success');
     } catch (err: any) {
       onNotify(err.message, 'error');
     } finally {
-      setLoadingEmail(false);
+      setLoadingUsername(false);
     }
   };
 
@@ -104,15 +105,15 @@ const Settings: React.FC<Props> = ({ onNotify }) => {
               <div className="flex-1">
                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-4">Update Profil</h3>
                 
-                <form onSubmit={handleUpdateEmail} className="space-y-4">
+                <form onSubmit={handleUpdateUsername} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Username Saat Ini</label>
                       <div className="relative">
-                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                         <input 
-                          type="email" 
-                          value={user.email} 
+                          type="text" 
+                          value={user.username} 
                           disabled 
                           className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-400"
                         />
@@ -121,11 +122,11 @@ const Settings: React.FC<Props> = ({ onNotify }) => {
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] ml-1">Username Baru</label>
                       <div className="relative">
-                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-400" size={14} />
+                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-400" size={14} />
                         <input 
-                          type="email" 
-                          value={newEmail}
-                          onChange={(e) => setNewEmail(e.target.value)}
+                          type="text" 
+                          value={newUsername}
+                          onChange={(e) => setNewUsername(e.target.value)}
                           className="w-full pl-10 pr-4 py-3 bg-indigo-50/30 border border-indigo-100 rounded-xl text-xs font-black text-indigo-900 outline-none focus:ring-2 ring-indigo-500 transition-all"
                         />
                       </div>
@@ -134,10 +135,10 @@ const Settings: React.FC<Props> = ({ onNotify }) => {
                   <div className="flex justify-end">
                     <button 
                       type="submit" 
-                      disabled={loadingEmail}
+                      disabled={loadingUsername}
                       className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:shadow-xl hover:translate-y-[-1px] active:translate-y-0 transition-all"
                     >
-                      {loadingEmail ? <Loader2 className="animate-spin w-3 h-3" /> : <Save size={14} />} Ganti Username
+                      {loadingUsername ? <Loader2 className="animate-spin w-3 h-3" /> : <Save size={14} />} Ganti Username
                     </button>
                   </div>
                 </form>

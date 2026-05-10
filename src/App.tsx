@@ -401,7 +401,7 @@ const App: React.FC = () => {
                     transition={{ duration: 0.3, ease: "easeOut" }}
                   >
                     {state.view === 'dashboard' && <Dashboard state={state} onNavigate={setView} />}
-                    {state.view === 'settings' && <Settings onNotify={showNotify} />}
+                    {state.view === 'settings' && <Settings onNotify={showNotify} onUpdateUser={setUser} />}
                     {state.view === 'manual_invoice' && (
                       <ManualInvoiceManager 
                         products={state.products} 
