@@ -19,6 +19,7 @@ interface Props {
   onViewInvoice: (o: Order) => void;
   onViewShippingInvoice: (o: Order, lastShipmentQtys?: Record<string, number>, lastShipmentDP?: number) => void;
   onNotify: (msg: string, type: 'success' | 'error' | 'info' | 'warning') => void;
+  requestConfirm?: (title: string, message: string, onConfirm: () => void, type?: 'danger' | 'info') => void;
 }
 
 type TabType = 'masuk' | 'dikerjakan' | 'dikirim';
@@ -33,7 +34,8 @@ const OrderManager: React.FC<Props> = ({
   onUpdateDeposit,
   onViewInvoice, 
   onViewShippingInvoice,
-  onNotify
+  onNotify,
+  requestConfirm
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('masuk');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
@@ -519,17 +521,35 @@ const OrderManager: React.FC<Props> = ({
                               title="Batal Kerjakan"
                               onClick={async (e) => { 
                                 e.stopPropagation(); 
-                                if (!confirm("Kembalikan semua barang ke antrian Masuk?")) return;
-                                const resetItems = o.items.map(i => ({ ...i, processingQuantity: 0 }));
-                                await onUpdateOrder({
-                                  ...o,
-                                  items: resetItems,
-                                  downPayment: 0,
-                                  depositUsed: 0,
-                                  total: o.subtotal,
-                                  payments: []
-                                });
-                                onNotify("Antrian produksi dibatalkan & hitungan direset", "info");
+                                if (requestConfirm) {
+                                  requestConfirm(
+                                    'Reset Antrian',
+                                    'Kembalikan semua barang ke antrian Masuk?',
+                                    async () => {
+                                      const resetItems = o.items.map(i => ({ ...i, processingQuantity: 0 }));
+                                      await onUpdateOrder({
+                                        ...o,
+                                        items: resetItems,
+                                        downPayment: 0,
+                                        depositUsed: 0,
+                                        total: o.subtotal,
+                                        payments: []
+                                      });
+                                      onNotify("Antrian produksi dibatalkan & hitungan direset", "info");
+                                    }
+                                  );
+                                } else if (confirm("Kembalikan semua barang ke antrian Masuk?")) {
+                                  const resetItems = o.items.map(i => ({ ...i, processingQuantity: 0 }));
+                                  await onUpdateOrder({
+                                    ...o,
+                                    items: resetItems,
+                                    downPayment: 0,
+                                    depositUsed: 0,
+                                    total: o.subtotal,
+                                    payments: []
+                                  });
+                                  onNotify("Antrian produksi dibatalkan & hitungan direset", "info");
+                                }
                               }} 
                               className="bg-slate-100 text-slate-400 p-1 rounded-lg hover:text-amber-600 hover:bg-amber-50 transition-all"
                             >
@@ -543,47 +563,90 @@ const OrderManager: React.FC<Props> = ({
                                title="Tandai Lunas"
                                onClick={async (e) => {
                                  e.stopPropagation();
-                                 if (!confirm("Tandai nota ini sebagai LUNAS? (Sisa tagihan akan menjadi 0)")) return;
-                                 await onUpdateOrder({
-                                   ...o,
-                                   status: OrderStatus.COMPLETED,
-                                   total: 0
-                                 });
-                                 onNotify("Nota ditandai Lunas", "success");
+                                 if (requestConfirm) {
+                                   requestConfirm(
+                                     'Pelunasan',
+                                     'Tandai nota ini sebagai LUNAS? (Sisa tagihan akan menjadi 0)',
+                                     async () => {
+                                       await onUpdateOrder({
+                                         ...o,
+                                         status: OrderStatus.COMPLETED,
+                                         total: 0
+                                       });
+                                       onNotify("Nota ditandai Lunas", "success");
+                                     },
+                                     'info'
+                                   );
+                                 } else if (confirm("Tandai nota ini sebagai LUNAS? (Sisa tagihan akan menjadi 0)")) {
+                                   await onUpdateOrder({
+                                      ...o,
+                                      status: OrderStatus.COMPLETED,
+                                      total: 0
+                                    });
+                                    onNotify("Nota ditandai Lunas", "success");
+                                 }
                                }}
                                className="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[8px] font-black uppercase shadow-sm hover:bg-emerald-700"
                             >
                                Lunas
                             </button>
-                            <button 
+                             <button 
                                title="Batal Kirim (Reset)"
                                onClick={async (e) => {
                                  e.stopPropagation();
-                                 if (!confirm("Tarik kembali semua barang yang sudah dikirim? (Status & Hitungan akan direset)")) return;
-                                 
-                                 try {
-                                   const resetItems = o.items.map(i => ({ 
-                                     ...i, 
-                                     processingQuantity: i.processingQuantity + i.shippedQuantity,
-                                     shippedQuantity: 0 
-                                   }));
-  
-                                   // Sederhanakan sesuai permintaan user: Cukup kosongkan data keuangan nota
-                                   // User akan update manual di menu Tabungan
-                                   const finalOrder: Order = {
-                                     ...o,
-                                     items: resetItems,
-                                     status: OrderStatus.PENDING,
-                                     payments: [],
-                                     downPayment: 0,
-                                     depositUsed: 0,
-                                     total: o.items.reduce((s, i) => s + (i.unitPrice * i.quantity), 0)
-                                   };
-  
-                                   await onUpdateOrder(finalOrder);
-                                   onNotify("Pengiriman dibatalkan & hitungan direset (Silakan update saldo manual)", "info");
-                                 } catch (err: any) {
-                                   onNotify("Gagal: " + err.message, "error");
+                                 if (requestConfirm) {
+                                   requestConfirm(
+                                     'Reset Pengiriman',
+                                     'Tarik kembali semua barang yang sudah dikirim? (Status & Hitungan akan direset)',
+                                     async () => {
+                                       try {
+                                         const resetItems = o.items.map(i => ({ 
+                                           ...i, 
+                                           processingQuantity: i.processingQuantity + i.shippedQuantity,
+                                           shippedQuantity: 0 
+                                         }));
+        
+                                         const finalOrder: Order = {
+                                           ...o,
+                                           items: resetItems,
+                                           status: OrderStatus.PENDING,
+                                           payments: [],
+                                           downPayment: 0,
+                                           depositUsed: 0,
+                                           total: o.subtotal
+                                         };
+        
+                                         await onUpdateOrder(finalOrder);
+                                         onNotify("Pengiriman ditarik & data keuangan direset", "info");
+                                       } catch (err: any) {
+                                         onNotify(`Gagal reset: ${err.message}`, "error");
+                                       }
+                                     },
+                                     'danger'
+                                   );
+                                 } else if (confirm("Tarik kembali semua barang yang sudah dikirim? (Status & Hitungan akan direset)")) {
+                                   try {
+                                     const resetItems = o.items.map(i => ({ 
+                                       ...i, 
+                                       processingQuantity: i.processingQuantity + i.shippedQuantity,
+                                       shippedQuantity: 0 
+                                     }));
+    
+                                     const finalOrder: Order = {
+                                       ...o,
+                                       items: resetItems,
+                                       status: OrderStatus.PENDING,
+                                       payments: [],
+                                       downPayment: 0,
+                                       depositUsed: 0,
+                                       total: o.subtotal
+                                     };
+    
+                                     await onUpdateOrder(finalOrder);
+                                     onNotify("Pengiriman ditarik & data keuangan direset", "info");
+                                   } catch (err: any) {
+                                     onNotify("Gagal: " + err.message, "error");
+                                   }
                                  }
                                }}
                                className="bg-slate-100 text-slate-400 p-1.5 rounded-lg hover:text-amber-600 hover:bg-amber-50"

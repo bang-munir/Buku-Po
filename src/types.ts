@@ -82,7 +82,7 @@ export interface Order {
   depositUsed?: number; // Melacak berapa banyak saldo deposit yang dipotong untuk order ini
 }
 
-export type ViewType = 'dashboard' | 'customers' | 'products' | 'orders' | 'invoice_detail' | 'reports' | 'manual_invoice' | 'dp_tracker' | 'invoice_book';
+export type ViewType = 'dashboard' | 'customers' | 'products' | 'orders' | 'invoice_detail' | 'reports' | 'manual_invoice' | 'dp_tracker' | 'invoice_book' | 'settings';
 
 export interface AppState {
   orders: Order[];

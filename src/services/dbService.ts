@@ -26,7 +26,7 @@ export const dbService = {
     
     if (error) {
       console.error('Error saving customer:', error);
-      throw error;
+      throw new Error(this.formatErrorMessage(error, 'simpan customer'));
     }
   },
 
@@ -61,7 +61,7 @@ export const dbService = {
     
     if (error) {
       console.error('Error saving category:', error);
-      throw error;
+      throw new Error(this.formatErrorMessage(error, 'simpan kategori'));
     }
   },
 
@@ -113,7 +113,7 @@ export const dbService = {
     
     if (error) {
       console.error('Error saving deposit:', error);
-      throw error;
+      throw new Error(this.formatErrorMessage(error, 'simpan deposit'));
     }
   },
 
@@ -123,7 +123,10 @@ export const dbService = {
       .delete()
       .eq('id', id);
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error deleting deposit:', error);
+      throw error;
+    }
   },
 
   // --- PRODUCTS ---
@@ -133,7 +136,10 @@ export const dbService = {
       .select('*')
       .order('name');
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching products:', error);
+      throw error;
+    }
     
     return (data || []).map(p => ({
       ...p,
@@ -162,7 +168,7 @@ export const dbService = {
     
     if (error) {
       console.error('Error saving product:', error);
-      throw error;
+      throw new Error(this.formatErrorMessage(error, 'simpan produk'));
     }
   },
 
@@ -172,7 +178,10 @@ export const dbService = {
       .delete()
       .eq('id', id);
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error deleting product:', error);
+      throw error;
+    }
   },
 
   // --- ORDERS ---
@@ -182,7 +191,10 @@ export const dbService = {
       .select('*, order_items(*), payments(*)')
       .order('order_date', { ascending: false });
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching orders:', error);
+      throw error;
+    }
     
     return (data || []).map(o => ({
       id: o.id,
@@ -244,8 +256,7 @@ export const dbService = {
         .upsert(orderPayload);
       
       if (orderError) {
-        console.error('DATABASE ERROR [Orders]:', orderError);
-        throw new Error(`Gagal simpan header order: ${orderError.message}`);
+        throw new Error(this.formatErrorMessage(orderError, 'simpan header nota'));
       }
 
       // 2. Refresh Order Items (Hapus yang lama, masukkan yang baru)
@@ -274,8 +285,7 @@ export const dbService = {
           .insert(itemsToSave);
         
         if (itemsError) {
-          console.error('DATABASE ERROR [Order Items]:', itemsError);
-          throw new Error(`Gagal simpan item pesanan: ${itemsError.message}`);
+          throw new Error(this.formatErrorMessage(itemsError, 'simpan item pesanan'));
         }
       }
 
@@ -301,8 +311,7 @@ export const dbService = {
           .insert(paymentsToSave);
         
         if (paymentsError) {
-          console.error('DATABASE ERROR [Payments]:', paymentsError);
-          throw new Error(`Gagal simpan pembayaran: ${paymentsError.message}`);
+          throw new Error(this.formatErrorMessage(paymentsError, 'simpan pembayaran'));
         }
       }
 
@@ -315,17 +324,26 @@ export const dbService = {
   },
 
   async deleteOrder(id: string) {
-    // Cascading deletes usually handle order_items and payments if configured in SQL
     const { error } = await supabase
       .from('orders')
       .delete()
       .eq('id', id);
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error deleting order:', error);
+      throw error;
+    }
   },
 
-  formatError(error: any, action: string): string {
-    return `Gagal ${action}: ${error.message || 'Error tidak diketahui'}`;
+  formatErrorMessage(error: any, action: string): string {
+    const msg = error.message || '';
+    if (msg.includes('row-level security') || error.code === '42501') {
+      return `Gagal ${action}: Akses Ditolak (RLS). Silakan jalankan perintah DISABLE RLS di SQL Editor Supabase untuk semua tabel.`;
+    }
+    if (error.code === '23505') {
+       return `Gagal ${action}: Data sudah ada (Unique Constraint).`;
+    }
+    return `Gagal ${action}: ${msg}`;
   }
 };
 

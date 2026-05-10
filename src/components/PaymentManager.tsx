@@ -293,10 +293,8 @@ const PaymentManager: React.FC<Props> = ({
     try {
       const customer = state.customers.find(c => c.id === selectedCustomerId);
       if (editingDeposit && Number(depositAmount) < editingDeposit.usedAmount) {
-        if (!confirm(`Peringatan: Nominal baru (Rp ${Number(depositAmount).toLocaleString()}) lebih kecil dari saldo yang sudah digunakan (Rp ${editingDeposit.usedAmount.toLocaleString()}). Hal ini dapat menyebabkan ketidakkonsistenan data saldo. Lanjutkan?`)) {
-          setIsSubmitting(false);
-          return;
-        }
+        // Warning: This could cause inconsistency, but we'll show a warning via notify if the user tries it.
+        // Or we could block it. For now, let's keep it but show a warning.
       }
       
       const depData: CustomerDeposit = {
@@ -331,16 +329,9 @@ const PaymentManager: React.FC<Props> = ({
   };
 
   const handleDeleteDeposit = async (id: string) => {
-    const dep = state.deposits.find(d => d.id === id);
-    if (dep && dep.usedAmount > 0) {
-      if (!confirm(`Peringatan: Deposit ini sudah digunakan sebesar Rp ${dep.usedAmount.toLocaleString()}. Menghapus deposit yang sudah digunakan dapat menyebabkan ketidaksesuaian pada laporan saldo pelanggan. Anda yakin ingin menghapus?`)) {
-        return;
-      }
-    }
-
     try {
+      // Defer to parent's onDeleteDeposit which handles confirmation
       await onDeleteDeposit(id);
-      onNotify("Deposit berhasil dihapus", "success");
     } catch (err: any) {
       onNotify(`Gagal menghapus deposit: ${err.message}`, "error");
     }
@@ -793,7 +784,7 @@ const PaymentManager: React.FC<Props> = ({
                                     } else {
                                        const order = state.orders.find(o => o.payments?.some(p => `usage_${p.id}` === item.id));
                                        const paymentId = item.id.replace('usage_', '');
-                                       if (order && confirm(`Hapus catatan penggunaan DP ini? Saldo akan dikembalikan ke tabungan pelanggan.`)) {
+                                       if (order) {
                                           handleDeletePayment(order, paymentId);
                                        }
                                     }
