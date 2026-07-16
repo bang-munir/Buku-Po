@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, FilePlus, Calculator, Wallet } from 'lucide-react';
+import { Plus, Trash2, FilePlus, Calculator, Wallet, Truck, Save, Loader2 } from 'lucide-react';
 import { Order, OrderItem, OrderStatus, LocationType, PaymentRecord, Product, Customer } from '@/types';
 import InvoiceView from './InvoiceView';
 
@@ -11,10 +11,12 @@ interface Props {
 }
 
 const ManualInvoiceManager: React.FC<Props> = ({ products, customers, onNotify, onAddOrder }) => {
+  const [activeTab, setActiveTab] = useState<'invoice' | 'surat_jalan'>('invoice');
   const [isPreview, setIsPreview] = useState(false);
   const [manualOrder, setManualOrder] = useState<Order | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // States for Manual Invoice
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [notes, setNotes] = useState('');
@@ -23,6 +25,22 @@ const ManualInvoiceManager: React.FC<Props> = ({ products, customers, onNotify, 
     { id: `item_${Date.now()}_1`, name: '', quantity: undefined, unitPrice: undefined }
   ]);
 
+  // States for Manual Surat Jalan
+  const [sjNumber, setSjNumber] = useState(`SJ-${Date.now().toString().slice(-6)}`);
+  const [sjDate, setSjDate] = useState(new Date().toISOString().split('T')[0]);
+  const [sjCustomerName, setSjCustomerName] = useState('');
+  const [sjCustomerAddress, setSjCustomerAddress] = useState('');
+  const [sjDriver, setSjDriver] = useState('');
+  const [sjVehiclePlate, setSjVehiclePlate] = useState('');
+  const [sjNotes, setSjNotes] = useState('');
+  const [sjItems, setSjItems] = useState<Partial<{ id: string, name: string, quantity: number, unit: string }>[]>([
+    { id: `item_${Date.now()}_1`, name: '', quantity: undefined, unit: 'BAL' }
+  ]);
+
+  // Common Unit List
+  const commonUnits = ['BAL', 'KOLI', 'IKAT'];
+
+  // Manual Invoice Helpers
   const addItem = () => {
     setItems([...items, { id: `item_${Date.now()}_${items.length + 1}`, name: '', quantity: undefined, unitPrice: undefined }]);
   };
@@ -42,6 +60,19 @@ const ManualInvoiceManager: React.FC<Props> = ({ products, customers, onNotify, 
   const remainingBalance = useMemo(() => {
     return Math.max(0, formSubtotal - (Number(downPayment) || 0));
   }, [formSubtotal, downPayment]);
+
+  // Manual Surat Jalan Helpers
+  const addSjItem = () => {
+    setSjItems([...sjItems, { id: `item_${Date.now()}_${sjItems.length + 1}`, name: '', quantity: undefined, unit: 'BAL' }]);
+  };
+
+  const removeSjItem = (id: string) => {
+    if (sjItems.length > 1) setSjItems(sjItems.filter(i => i.id !== id));
+  };
+
+  const updateSjItem = (id: string, field: string, value: any) => {
+    setSjItems(sjItems.map(i => i.id === id ? { ...i, [field]: value === '' ? undefined : value } : i));
+  };
 
   const createManualOrder = () => {
     const dpAmount = Number(downPayment) || 0;
@@ -84,21 +115,80 @@ const ManualInvoiceManager: React.FC<Props> = ({ products, customers, onNotify, 
     return order;
   };
 
+  const createManualSuratJalan = () => {
+    const orderId = `ord_manual_sj_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const matchedCustomer = customers.find(c => c.name === sjCustomerName);
+    
+    const notesJson = JSON.stringify({
+      driver: sjDriver,
+      plate: sjVehiclePlate,
+      remarks: sjNotes
+    });
+
+    const order: Order = {
+      id: orderId,
+      invoiceNumber: sjNumber || `SJ-${Date.now().toString().slice(-6)}`,
+      customerId: matchedCustomer?.id || `cust_walkin_${Date.now()}`,
+      customerName: sjCustomerName,
+      customerAddress: sjCustomerAddress,
+      customerType: matchedCustomer?.type || LocationType.JAKARTA,
+      orderDate: new Date(sjDate).toISOString(),
+      status: OrderStatus.SHIPPED,
+      items: sjItems.map(i => ({
+        id: i.id!.length > 10 ? i.id! : `item_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,
+        productId: 'manual',
+        name: `${i.name || 'Barang Tanpa Nama'} [${i.unit || 'Pcs'}]`,
+        quantity: Number(i.quantity) || 0,
+        processingQuantity: 0,
+        shippedQuantity: Number(i.quantity) || 0,
+        unitPrice: 0,
+        costPrice: 0
+      })),
+      subtotal: 0,
+      downPayment: 0,
+      payments: [],
+      total: 0,
+      depositUsed: 0,
+      notes: notesJson
+    };
+    return order;
+  };
+
   const handlePreview = (e: React.FormEvent) => {
     e.preventDefault();
-    const order = createManualOrder();
+    const order = activeTab === 'invoice' ? createManualOrder() : createManualSuratJalan();
     setManualOrder(order);
     setIsPreview(true);
   };
 
   const handleSave = async () => {
     if (!onAddOrder) return;
-    const order = manualOrder || createManualOrder();
+    const order = manualOrder || (activeTab === 'invoice' ? createManualOrder() : createManualSuratJalan());
     
     setIsSubmitting(true);
     try {
       await onAddOrder(order);
-      onNotify("Nota Manual Berhasil Disimpan", "success");
+      const successMsg = activeTab === 'invoice' ? "Nota Manual Berhasil Disimpan" : "Surat Jalan Manual Berhasil Disimpan";
+      onNotify(successMsg, "success");
+      
+      // Reset inputs after saving
+      if (activeTab === 'invoice') {
+        setCustomerName('');
+        setCustomerAddress('');
+        setNotes('');
+        setDownPayment(undefined);
+        setItems([{ id: `item_${Date.now()}_1`, name: '', quantity: undefined, unitPrice: undefined }]);
+      } else {
+        setSjNumber(`SJ-${Date.now().toString().slice(-6)}`);
+        setSjCustomerName('');
+        setSjCustomerAddress('');
+        setSjDriver('');
+        setSjVehiclePlate('');
+        setSjNotes('');
+        setSjItems([{ id: `item_${Date.now()}_1`, name: '', quantity: undefined, unit: 'BAL' }]);
+      }
+      setIsPreview(false);
+      setManualOrder(null);
     } catch (err: any) {
       onNotify(`Gagal simpan: ${err.message}`, "error");
     } finally {
@@ -117,183 +207,385 @@ const ManualInvoiceManager: React.FC<Props> = ({ products, customers, onNotify, 
             <button 
               onClick={handleSave} 
               disabled={isSubmitting}
-              className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2 disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2 disabled:opacity-50 transition-all"
             >
-              Simpan Permanen
+              {isSubmitting ? <Loader2 className="animate-spin w-3.5 h-3.5" /> : <Save size={14} />} Simpan Permanen
             </button>
             <div className="bg-indigo-50 text-indigo-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-100 flex items-center">
-              Pratinjau Nota
+              Pratinjau {activeTab === 'invoice' ? 'Nota' : 'Surat Jalan'}
             </div>
           </div>
         </div>
-        <InvoiceView order={manualOrder} onNotify={onNotify} />
+        <InvoiceView order={manualOrder} onNotify={onNotify} customers={customers} />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto animate-in fade-in duration-500">
-      <div className="bg-white rounded-[1.5rem] shadow-xl border border-slate-100 p-4 md:p-5 space-y-4">
-        <div className="flex justify-between items-center border-b border-slate-50 pb-1.5">
-          <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 p-1.5 rounded-lg text-white shadow-md">
-              <FilePlus size={16} />
+    <div className="max-w-4xl mx-auto animate-in fade-in duration-500 space-y-6">
+      {/* Tab Controls */}
+      <div className="flex border-b border-slate-100 pb-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('invoice')}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${
+            activeTab === 'invoice'
+              ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100'
+              : 'bg-white border border-slate-100 text-slate-500 hover:bg-slate-50 shadow-sm'
+          }`}
+        >
+          <FilePlus size={15} />
+          Nota Manual
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('surat_jalan')}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${
+            activeTab === 'surat_jalan'
+              ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100'
+              : 'bg-white border border-slate-100 text-slate-500 hover:bg-slate-50 shadow-sm'
+          }`}
+        >
+          <Truck size={15} />
+          Surat Jalan Manual
+        </button>
+      </div>
+
+      {activeTab === 'invoice' ? (
+        // FORM NOTA MANUAL
+        <div className="bg-white rounded-[1.5rem] shadow-xl border border-slate-100 p-4 md:p-5 space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-50 pb-2">
+            <div className="flex items-center gap-2">
+              <div className="bg-indigo-600 p-1.5 rounded-lg text-white shadow-md">
+                <FilePlus size={16} />
+              </div>
+              <h2 className="text-sm font-black text-slate-900 tracking-tight uppercase">Nota Manual Baru</h2>
             </div>
-            <h2 className="text-sm font-black text-slate-900 tracking-tight uppercase">Nota Manual</h2>
           </div>
-        </div>
 
-        <form onSubmit={handlePreview} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/50 p-2.5 rounded-xl border border-slate-50">
-            <datalist id="existing-customers">
-              {customers.map(c => (
-                <option key={c.id} value={c.name} />
-              ))}
-            </datalist>
-            <div className="space-y-1">
-              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Pelanggan</label>
-              <input 
-                required 
-                list="existing-customers"
-                placeholder="Nama..." 
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs" 
-                value={customerName} 
-                onChange={e => {
-                  const val = e.target.value;
-                  setCustomerName(val);
-                  const matched = customers.find(c => c.name === val);
-                  if (matched) {
-                    setCustomerAddress(matched.address);
-                  }
-                }} 
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Alamat</label>
-              <input placeholder="Alamat..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between items-center px-1">
-              <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                <Calculator size={10} className="text-indigo-500" /> Daftar Barang
-              </h3>
-              <button type="button" onClick={addItem} className="text-[8px] font-black text-indigo-600 uppercase flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">
-                <Plus size={10} /> Tambah
-              </button>
-            </div>
-
-            <div className="space-y-1.5 bg-slate-50 p-2 rounded-xl border border-slate-50">
-              <datalist id="catalog-products">
-                {products.map(p => (
-                  <option key={p.id} value={p.name} />
+          <form onSubmit={handlePreview} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-50">
+              <datalist id="existing-customers">
+                {customers.map(c => (
+                  <option key={c.id} value={c.name} />
                 ))}
               </datalist>
-              {items.map((item) => {
-                const itemTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
-                return (
-                  <div key={item.id} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-lg border border-slate-100">
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Pelanggan</label>
+                <input 
+                  required 
+                  list="existing-customers"
+                  placeholder="Cari atau masukkan nama..." 
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500" 
+                  value={customerName} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    setCustomerName(val);
+                    const matched = customers.find(c => c.name === val);
+                    if (matched) {
+                      setCustomerAddress(matched.address);
+                    }
+                  }} 
+                  onBlur={() => {
+                    const matched = customers.find(c => c.name.trim().toLowerCase() === customerName.trim().toLowerCase());
+                    if (matched) {
+                      setCustomerName(matched.name);
+                      setCustomerAddress(matched.address);
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Alamat Pelanggan</label>
+                <input placeholder="Alamat..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center px-1">
+                <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                  <Calculator size={10} className="text-indigo-500" /> Daftar Barang
+                </h3>
+                <button type="button" onClick={addItem} className="text-[8px] font-black text-indigo-600 uppercase flex items-center gap-1 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  <Plus size={10} /> Tambah
+                </button>
+              </div>
+
+              <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-50">
+                <datalist id="catalog-products">
+                  {products.map(p => (
+                    <option key={p.id} value={p.name} />
+                  ))}
+                </datalist>
+                {items.map((item) => {
+                  const itemTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                  return (
+                    <div key={item.id} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
+                      <div className="col-span-12 lg:col-span-6">
+                        <input 
+                          required 
+                          list="catalog-products"
+                          placeholder="Nama barang..." 
+                          className="w-full px-2 py-1.5 bg-transparent outline-none font-black text-slate-700 text-[10px] border-b border-slate-100 focus:border-indigo-500" 
+                          value={item.name} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            updateItem(item.id!, 'name', val);
+                          }} 
+                        />
+                      </div>
+                      <div className="col-span-4 lg:col-span-2">
+                        <input 
+                          required 
+                          type="number" 
+                          placeholder="Qty" 
+                          className="w-full bg-transparent outline-none font-black text-slate-700 text-[10px] text-center border-b border-slate-100 focus:border-indigo-500" 
+                          value={item.quantity === undefined ? '' : item.quantity} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            const num = Number(val);
+                            updateItem(item.id!, 'quantity', val === '' ? undefined : (isNaN(num) ? 0 : num));
+                          }} 
+                        />
+                      </div>
+                      <div className="col-span-4 lg:col-span-2">
+                        <input 
+                          required 
+                          type="number" 
+                          placeholder="Harga Satuan" 
+                          className="w-full bg-transparent outline-none font-black text-slate-700 text-[10px] border-b border-slate-100 focus:border-indigo-500" 
+                          value={item.unitPrice === undefined ? '' : item.unitPrice} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            const num = Number(val);
+                            updateItem(item.id!, 'unitPrice', val === '' ? undefined : (isNaN(num) ? 0 : num));
+                          }} 
+                        />
+                      </div>
+                      <div className="col-span-3 lg:col-span-1 text-right lg:block hidden">
+                        <p className="text-[9px] font-black text-indigo-600 truncate">Rp {itemTotal.toLocaleString()}</p>
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button type="button" onClick={() => removeItem(item.id!)} className="text-slate-300 hover:text-rose-500 p-0.5"><Trash2 size={12} /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 items-start pt-3 border-t border-slate-50">
+              <div className="flex-1 w-full space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Catatan Nota</label>
+                  <textarea className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 outline-none font-medium text-[10px] h-12 resize-none" placeholder="Tambahan..." value={notes} onChange={e => setNotes(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <Wallet size={10} className="text-emerald-500" />
+                    <h3 className="text-[8px] font-black text-slate-800 uppercase tracking-widest">Input DP</h3>
+                  </div>
+                  <input 
+                    type="number" 
+                    placeholder="0" 
+                    className="w-full max-w-[120px] px-3 py-1.5 rounded-lg border border-emerald-100 bg-emerald-50/30 outline-none font-black text-emerald-700 text-xs" 
+                    value={downPayment === undefined ? '' : downPayment} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      const num = Number(val);
+                      setDownPayment(val === '' ? undefined : (isNaN(num) ? 0 : num));
+                    }} 
+                  />
+                </div>
+              </div>
+
+              <div className="w-full md:w-60 bg-slate-900 rounded-2xl p-4 text-white shadow-lg space-y-2">
+                 <div className="flex justify-between items-center">
+                   <p className="text-[7px] font-black text-slate-400 uppercase">Jumlah</p>
+                   <p className="text-[10px] font-bold text-slate-500 line-through">Rp {formSubtotal.toLocaleString()}</p>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <p className="text-[7px] font-black text-emerald-400 uppercase">Dibayar</p>
+                   <p className="text-[10px] font-bold text-emerald-400">Rp {(Number(downPayment) || 0).toLocaleString()}</p>
+                 </div>
+                 <div className="pt-2 border-t border-white/10 flex justify-between items-end">
+                   <div>
+                    <p className="text-[7px] font-black text-indigo-400 uppercase mb-0.5">Sisa</p>
+                    <h4 className="text-lg font-black tracking-tighter">Rp {remainingBalance.toLocaleString()}</h4>
+                   </div>
+                   <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-black text-[9px] uppercase tracking-widest shadow-lg active:scale-95 transition-all">
+                    LIHAT NOTA
+                  </button>
+                 </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      ) : (
+        // FORM SURAT JALAN MANUAL
+        <div className="bg-white rounded-[1.5rem] shadow-xl border border-slate-100 p-4 md:p-5 space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-50 pb-2">
+            <div className="flex items-center gap-2">
+              <div className="bg-indigo-600 p-1.5 rounded-lg text-white shadow-md">
+                <Truck size={16} />
+              </div>
+              <h2 className="text-sm font-black text-slate-900 tracking-tight uppercase">Surat Jalan Manual Baru</h2>
+            </div>
+          </div>
+
+          <form onSubmit={handlePreview} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-50">
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Nomor Surat Jalan</label>
+                <input 
+                  required 
+                  placeholder="SJ-XXXXXX" 
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500 uppercase" 
+                  value={sjNumber} 
+                  onChange={e => setSjNumber(e.target.value)} 
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Kirim</label>
+                <input 
+                  required 
+                  type="date"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500" 
+                  value={sjDate} 
+                  onChange={e => setSjDate(e.target.value)} 
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-50">
+              <datalist id="existing-customers">
+                {customers.map(c => (
+                  <option key={c.id} value={c.name} />
+                ))}
+              </datalist>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Penerima (Pelanggan)</label>
+                <input 
+                  required 
+                  list="existing-customers"
+                  placeholder="Cari atau masukkan nama..." 
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500" 
+                  value={sjCustomerName} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    setSjCustomerName(val);
+                    const matched = customers.find(c => c.name === val);
+                    if (matched) {
+                      setSjCustomerAddress(matched.address);
+                    }
+                  }} 
+                  onBlur={() => {
+                    const matched = customers.find(c => c.name.trim().toLowerCase() === sjCustomerName.trim().toLowerCase());
+                    if (matched) {
+                      setSjCustomerName(matched.name);
+                      setSjCustomerAddress(matched.address);
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Alamat Penerima</label>
+                <input placeholder="Alamat lengkap..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500" value={sjCustomerAddress} onChange={e => setSjCustomerAddress(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-50">
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Pengirim</label>
+                <input placeholder="Masukkan nama pengirim..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500 uppercase" value={sjDriver} onChange={e => setSjDriver(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Nomor HP Pengirim</label>
+                <input placeholder="Masukkan nomor HP pengirim..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500 uppercase" value={sjVehiclePlate} onChange={e => setSjVehiclePlate(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center px-1">
+                <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                  <Calculator size={10} className="text-indigo-500" /> Daftar Barang
+                </h3>
+                <button type="button" onClick={addSjItem} className="text-[8px] font-black text-indigo-600 uppercase flex items-center gap-1 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  <Plus size={10} /> Tambah
+                </button>
+              </div>
+
+              <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-50">
+                <datalist id="catalog-products">
+                  {products.map(p => (
+                    <option key={p.id} value={p.name} />
+                  ))}
+                </datalist>
+                {sjItems.map((item) => (
+                  <div key={item.id} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
                     <div className="col-span-12 lg:col-span-6">
                       <input 
                         required 
                         list="catalog-products"
                         placeholder="Nama barang..." 
-                        className="w-full px-1.5 py-1 bg-transparent outline-none font-black text-slate-700 text-[10px] border-b border-slate-100 focus:border-indigo-500" 
+                        className="w-full px-2 py-1.5 bg-transparent outline-none font-black text-slate-700 text-[10px] border-b border-slate-100 focus:border-indigo-500" 
                         value={item.name} 
                         onChange={e => {
                           const val = e.target.value;
-                          updateItem(item.id!, 'name', val);
+                          updateSjItem(item.id!, 'name', val);
                         }} 
                       />
                     </div>
-                    <div className="col-span-3 lg:col-span-2">
+                    <div className="col-span-4 lg:col-span-3">
                       <input 
                         required 
                         type="number" 
                         placeholder="Qty" 
-                        className="w-full bg-transparent outline-none font-black text-slate-700 text-[10px] text-center border-b border-slate-100" 
+                        className="w-full bg-transparent outline-none font-black text-slate-700 text-[10px] text-center border-b border-slate-100 focus:border-indigo-500" 
                         value={item.quantity === undefined ? '' : item.quantity} 
                         onChange={e => {
                           const val = e.target.value;
                           const num = Number(val);
-                          updateItem(item.id!, 'quantity', val === '' ? undefined : (isNaN(num) ? 0 : num));
+                          updateSjItem(item.id!, 'quantity', val === '' ? undefined : (isNaN(num) ? 0 : num));
                         }} 
                       />
                     </div>
-                    <div className="col-span-4 lg:col-span-2">
-                      <input 
-                        required 
-                        type="number" 
-                        placeholder="Harga" 
-                        className="w-full bg-transparent outline-none font-black text-slate-700 text-[10px] border-b border-slate-100" 
-                        value={item.unitPrice === undefined ? '' : item.unitPrice} 
-                        onChange={e => {
-                          const val = e.target.value;
-                          const num = Number(val);
-                          updateItem(item.id!, 'unitPrice', val === '' ? undefined : (isNaN(num) ? 0 : num));
-                        }} 
-                      />
+                    <div className="col-span-6 lg:col-span-2">
+                      <select 
+                        className="w-full bg-transparent outline-none font-black text-slate-700 text-[10px] border-b border-slate-100 py-1.5 focus:border-indigo-500 uppercase"
+                        value={item.unit || 'Pcs'}
+                        onChange={e => updateSjItem(item.id!, 'unit', e.target.value)}
+                      >
+                        {commonUnits.map(unit => (
+                          <option key={unit} value={unit}>{unit}</option>
+                        ))}
+                      </select>
                     </div>
-                    <div className="col-span-4 lg:col-span-1 text-right lg:block hidden">
-                      <p className="text-[9px] font-black text-indigo-600 truncate">Rp {itemTotal.toLocaleString()}</p>
-                    </div>
-                    <div className="col-span-1 flex justify-end">
-                      <button type="button" onClick={() => removeItem(item.id!)} className="text-slate-300 hover:text-rose-500 p-0.5"><Trash2 size={12} /></button>
+                    <div className="col-span-2 lg:col-span-1 flex justify-end">
+                      <button type="button" onClick={() => removeSjItem(item.id!)} className="text-slate-300 hover:text-rose-500 p-0.5"><Trash2 size={12} /></button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-4 items-start pt-3 border-t border-slate-50">
-            <div className="flex-1 w-full space-y-3">
-              <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Catatan</label>
-                <textarea className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 outline-none font-medium text-[10px] h-12 resize-none" placeholder="Tambahan..." value={notes} onChange={e => setNotes(e.target.value)} />
+                ))}
               </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <Wallet size={10} className="text-emerald-500" />
-                  <h3 className="text-[8px] font-black text-slate-800 uppercase tracking-widest">Input DP</h3>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 items-start pt-3 border-t border-slate-50">
+              <div className="flex-1 w-full">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Keterangan Pengiriman</label>
+                  <textarea className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 outline-none font-medium text-[10px] h-14 resize-none" placeholder="Tulis catatan kurir atau keterangan..." value={sjNotes} onChange={e => setSjNotes(e.target.value)} />
                 </div>
-                <input 
-                  type="number" 
-                  placeholder="0" 
-                  className="w-full max-w-[120px] px-3 py-1.5 rounded-lg border border-emerald-100 bg-emerald-50/30 outline-none font-black text-emerald-700 text-xs" 
-                  value={downPayment === undefined ? '' : downPayment} 
-                  onChange={e => {
-                    const val = e.target.value;
-                    const num = Number(val);
-                    setDownPayment(val === '' ? undefined : (isNaN(num) ? 0 : num));
-                  }} 
-                />
+              </div>
+
+              <div className="w-full md:w-auto flex justify-end">
+                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2 active:scale-95 transition-all">
+                  <Truck size={14} /> LIHAT SURAT JALAN
+                </button>
               </div>
             </div>
-
-            <div className="w-full md:w-60 bg-slate-900 rounded-2xl p-4 text-white shadow-lg space-y-2">
-               <div className="flex justify-between items-center">
-                 <p className="text-[7px] font-black text-slate-400 uppercase">Jumlah</p>
-                 <p className="text-[10px] font-bold text-slate-500 line-through">Rp {formSubtotal.toLocaleString()}</p>
-               </div>
-               <div className="flex justify-between items-center">
-                 <p className="text-[7px] font-black text-emerald-400 uppercase">Dibayar</p>
-                 <p className="text-[10px] font-bold text-emerald-400">Rp {(Number(downPayment) || 0).toLocaleString()}</p>
-               </div>
-               <div className="pt-2 border-t border-white/10 flex justify-between items-end">
-                 <div>
-                  <p className="text-[7px] font-black text-indigo-400 uppercase mb-0.5">Sisa</p>
-                  <h4 className="text-lg font-black tracking-tighter">Rp {remainingBalance.toLocaleString()}</h4>
-                 </div>
-                 <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-black text-[9px] uppercase tracking-widest shadow-lg active:scale-95 transition-all">
-                  LIHAT
-                </button>
-               </div>
-            </div>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

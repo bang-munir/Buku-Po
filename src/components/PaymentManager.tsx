@@ -28,7 +28,11 @@ const PaymentManager: React.FC<Props> = ({
   onViewInvoice
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterMonth, setFilterMonth] = useState<string>(''); // format: YYYY-MM
+  const [filterMode, setFilterMode] = useState<'month' | 'date'>('month');
+  const [filterMonth, setFilterMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }); // format: YYYY-MM
   
   // States for Order Payment
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -40,20 +44,22 @@ const PaymentManager: React.FC<Props> = ({
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [editingDeposit, setEditingDeposit] = useState<CustomerDeposit | null>(null);
   const [historyCustomerId, setHistoryCustomerId] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  
+  const formatDateString = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
 
-  const monthsList = useMemo(() => {
-    const list = [];
+  const [startDate, setStartDate] = useState<string>(() => {
     const now = new Date();
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
-      list.push({ val, label });
-    }
-    return list;
-  }, []);
+    return formatDateString(new Date(now.getFullYear(), now.getMonth(), 1));
+  });
+  const [endDate, setEndDate] = useState<string>(() => {
+    const now = new Date();
+    return formatDateString(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  });
 
   const handleMonthChange = (val: string) => {
     setFilterMonth(val);
@@ -61,13 +67,24 @@ const PaymentManager: React.FC<Props> = ({
       const [year, month] = val.split('-').map(Number);
       const start = new Date(year, month - 1, 1);
       const end = new Date(year, month, 0); // last day of month
-      const formatDate = (date: Date) => date.toISOString().split('T')[0];
-      setStartDate(formatDate(start));
-      setEndDate(formatDate(end));
+      setStartDate(formatDateString(start));
+      setEndDate(formatDateString(end));
     } else {
       setStartDate('');
       setEndDate('');
     }
+  };
+
+  const getPeriodLabel = () => {
+    if (filterMode === 'month' && filterMonth) {
+      const [year, month] = filterMonth.split('-').map(Number);
+      const date = new Date(year, month - 1, 1);
+      return date.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+    }
+    if (startDate || endDate) {
+      return 'Periode Dipilih';
+    }
+    return 'Semua Waktu';
   };
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [depositAmount, setDepositAmount] = useState<number | string>('');
@@ -586,7 +603,7 @@ const PaymentManager: React.FC<Props> = ({
          </div>
          <div className="bg-sky-50 p-5 rounded-[2rem] border border-sky-100 shadow-sm flex items-center justify-between">
             <div>
-               <p className="text-[10px] font-black text-sky-500 uppercase tracking-[0.2em]">{filterMonth ? monthsList.find(m => m.val === filterMonth)?.label : (startDate ? 'Periode Dipilih' : 'Semua Waktu')}</p>
+               <p className="text-[10px] font-black text-sky-500 uppercase tracking-[0.2em]">{getPeriodLabel()}</p>
                <h2 className="text-2xl font-black text-sky-600 tracking-tighter leading-tight">Rp {financialStats.periodDepositIn.toLocaleString()}</h2>
             </div>
             <div className="bg-white p-3 rounded-2xl text-sky-500">
@@ -631,44 +648,77 @@ const PaymentManager: React.FC<Props> = ({
               </div>
            </div>
 
-           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-50">
-              <div className="space-y-1">
-                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <Calendar size={10} className="text-indigo-400" /> Pilih Bulan
-                 </label>
-                 <select 
-                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20" 
-                    value={filterMonth} 
-                    onChange={e => handleMonthChange(e.target.value)}
-                 >
-                    <option value="">CUSTOM RANGE</option>
-                    {monthsList.map(m => (
-                       <option key={m.val} value={m.val}>{m.label}</option>
-                    ))}
-                 </select>
-              </div>
-              <div className="space-y-1">
-                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Dari Tanggal</label>
-                 <input 
-                    type="date" 
-                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20" 
-                    value={startDate} 
-                    onChange={e => { setStartDate(e.target.value); setFilterMonth(''); }} 
-                 />
-              </div>
-              <div className="space-y-1">
-                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sampai Tanggal</label>
-                 <input 
-                    type="date" 
-                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20" 
-                    value={endDate} 
-                    onChange={e => { setEndDate(e.target.value); setFilterMonth(''); }} 
-                 />
-              </div>
-           </div>
-        </div>
+                       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100">
+               {/* 1. Mode Selector */}
+               <div className="md:col-span-3 space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                     <Search size={10} className="text-indigo-400" /> Metode Filter
+                  </label>
+                  <div className="flex bg-white p-0.5 rounded-xl border border-slate-200">
+                     <button
+                       type="button"
+                       onClick={() => {
+                          setFilterMode('month');
+                          const now = new Date();
+                          const val = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                          handleMonthChange(val);
+                       }}
+                       className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${filterMode === 'month' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                     >
+                        Per Bulan
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => {
+                          setFilterMode('date');
+                          setFilterMonth('');
+                       }}
+                       className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${filterMode === 'date' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                     >
+                        Per Tanggal
+                     </button>
+                  </div>
+               </div>
 
-        <div className="overflow-x-auto">
+               {/* 2. Month/Date Inputs */}
+               {filterMode === 'month' ? (
+                  <div className="md:col-span-9 space-y-1">
+                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                        <Calendar size={10} className="text-indigo-400" /> Pilih Bulan Pencarian
+                     </label>
+                     <input
+                        type="month"
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                        value={filterMonth}
+                        onChange={e => handleMonthChange(e.target.value)}
+                     />
+                  </div>
+               ) : (
+                  <>
+                     <div className="md:col-span-4 space-y-1">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Dari Tanggal</label>
+                        <input 
+                           type="date"
+                           className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all" 
+                           value={startDate} 
+                           onChange={e => { setStartDate(e.target.value); setFilterMonth(''); }} 
+                        />
+                     </div>
+                     <div className="md:col-span-5 space-y-1">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sampai Tanggal</label>
+                        <input 
+                           type="date"
+                           className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all" 
+                           value={endDate} 
+                           onChange={e => { setEndDate(e.target.value); setFilterMonth(''); }} 
+                        />
+                     </div>
+                  </>
+               )}
+            </div>
+         </div>
+
+         <div className="overflow-x-auto">
              <table className="w-full text-left">
                <thead className="bg-slate-50 text-slate-400 text-[8px] font-black uppercase tracking-widest border-b border-slate-100">
                  <tr>

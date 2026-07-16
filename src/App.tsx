@@ -255,9 +255,10 @@ const App: React.FC = () => {
       ) : initialLoading ? (
         <motion.div
           key="loading"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          initial={{ opacity: 0, filter: 'blur(10px)' }}
+          animate={{ opacity: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, filter: 'blur(10px)' }}
+          transition={{ duration: 0.4, ease: "easeInOut" }}
           className="min-h-screen flex flex-col items-center justify-center bg-slate-100 p-6 text-center"
         >
           <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl mb-8">
@@ -275,6 +276,8 @@ const App: React.FC = () => {
           key="app"
           initial={{ opacity: 0, filter: 'blur(10px)' }}
           animate={{ opacity: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, filter: 'blur(10px)' }}
+          transition={{ duration: 0.4, ease: "easeInOut" }}
           className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans overflow-x-hidden"
         >
           <AnimatePresence>
@@ -568,6 +571,7 @@ const App: React.FC = () => {
                         sessionDP={state.lastShipmentDP}
                         autoDownload={state.autoDownloadInvoice}
                         onBack={() => setState(p => ({...p, view: 'orders', activeOrder: null, lastShipmentQtys: null, lastShipmentDP: null, autoDownloadInvoice: false}))}
+                        customers={state.customers}
                       />
                     )}
                   </motion.div>
