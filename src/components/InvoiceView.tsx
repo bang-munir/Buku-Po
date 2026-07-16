@@ -376,7 +376,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
 
                 {/* Pelanggan Section */}
                  <div className="mb-10">
-                    <p className="text-[10px] font-black tracking-[0.2em] text-indigo-500 uppercase mb-2">KEPADA YTH</p>
+                    <p className="text-[10px] font-black tracking-[0.2em] text-indigo-500 uppercase mb-2">KEPADA</p>
                     <h2 className="text-base font-black text-slate-900 uppercase tracking-tight">{order.customerName}</h2>
                  </div>
 

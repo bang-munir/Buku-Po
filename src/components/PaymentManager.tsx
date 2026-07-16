@@ -28,11 +28,8 @@ const PaymentManager: React.FC<Props> = ({
   onViewInvoice
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterMode, setFilterMode] = useState<'month' | 'date'>('month');
-  const [filterMonth, setFilterMonth] = useState<string>(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  }); // format: YYYY-MM
+  const [filterMode, setFilterMode] = useState<'all' | 'month' | 'date'>('all');
+  const [filterMonth, setFilterMonth] = useState<string>(''); // format: YYYY-MM
   
   // States for Order Payment
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -52,14 +49,8 @@ const PaymentManager: React.FC<Props> = ({
     return `${y}-${m}-${d}`;
   };
 
-  const [startDate, setStartDate] = useState<string>(() => {
-    const now = new Date();
-    return formatDateString(new Date(now.getFullYear(), now.getMonth(), 1));
-  });
-  const [endDate, setEndDate] = useState<string>(() => {
-    const now = new Date();
-    return formatDateString(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-  });
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   const handleMonthChange = (val: string) => {
     setFilterMonth(val);
@@ -775,15 +766,25 @@ const PaymentManager: React.FC<Props> = ({
                      <UserPlus size={14}/> Terima
                  </button>
               </div>
-           </div>
-
-                       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100">
+           </div>                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100">
                {/* 1. Mode Selector */}
-               <div className="md:col-span-3 space-y-1">
+               <div className="md:col-span-4 space-y-1">
                   <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
                      <Search size={10} className="text-indigo-400" /> Metode Filter
                   </label>
                   <div className="flex bg-white p-0.5 rounded-xl border border-slate-200">
+                     <button
+                       type="button"
+                       onClick={() => {
+                          setFilterMode('all');
+                          setFilterMonth('');
+                          setStartDate('');
+                          setEndDate('');
+                       }}
+                       className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${filterMode === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                     >
+                        Semua
+                     </button>
                      <button
                        type="button"
                        onClick={() => {
@@ -801,6 +802,9 @@ const PaymentManager: React.FC<Props> = ({
                        onClick={() => {
                           setFilterMode('date');
                           setFilterMonth('');
+                          const now = new Date();
+                          setStartDate(formatDateString(new Date(now.getFullYear(), now.getMonth(), 1)));
+                          setEndDate(formatDateString(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
                        }}
                        className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${filterMode === 'date' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
                      >
@@ -808,10 +812,16 @@ const PaymentManager: React.FC<Props> = ({
                      </button>
                   </div>
                </div>
-
+ 
                {/* 2. Month/Date Inputs */}
-               {filterMode === 'month' ? (
-                  <div className="md:col-span-9 space-y-1">
+               {filterMode === 'all' ? (
+                  <div className="md:col-span-8 flex items-center h-full pt-4 md:pt-5 px-1">
+                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider italic">
+                        ✓ Menampilkan seluruh data DP Masuk pelanggan (Semua Waktu)
+                     </p>
+                  </div>
+               ) : filterMode === 'month' ? (
+                  <div className="md:col-span-8 space-y-1">
                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
                         <Calendar size={10} className="text-indigo-400" /> Pilih Bulan Pencarian
                      </label>
@@ -823,8 +833,8 @@ const PaymentManager: React.FC<Props> = ({
                      />
                   </div>
                ) : (
-                  <>
-                     <div className="md:col-span-4 space-y-1">
+                  <div className="md:col-span-8 grid grid-cols-2 gap-2">
+                     <div className="space-y-1">
                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Dari Tanggal</label>
                         <input 
                            type="date"
@@ -833,7 +843,7 @@ const PaymentManager: React.FC<Props> = ({
                            onChange={e => { setStartDate(e.target.value); setFilterMonth(''); }} 
                         />
                      </div>
-                     <div className="md:col-span-5 space-y-1">
+                     <div className="space-y-1">
                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sampai Tanggal</label>
                         <input 
                            type="date"
@@ -842,7 +852,7 @@ const PaymentManager: React.FC<Props> = ({
                            onChange={e => { setEndDate(e.target.value); setFilterMonth(''); }} 
                         />
                      </div>
-                  </>
+                  </div>
                )}
             </div>
          </div>
