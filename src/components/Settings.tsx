@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User, Lock, Save, Loader2, LogOut, ShieldCheck, Check } from 'lucide-react';
+import { User, Lock, Save, Loader2, LogOut, ShieldCheck, Check, Phone, Truck } from 'lucide-react';
 
 interface Props {
   onNotify: (msg: string, type: any) => void;
@@ -12,16 +12,69 @@ const Settings: React.FC<Props> = ({ onNotify, onUpdateUser }) => {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [senderName, setSenderName] = useState('');
+  const [senderPhone, setSenderPhone] = useState('');
   const [loadingUsername, setLoadingUsername] = useState(false);
   const [loadingPassword, setLoadingPassword] = useState(false);
+  const [loadingSender, setLoadingSender] = useState(false);
 
   useEffect(() => {
     const savedSession = localStorage.getItem('app_session');
     if (savedSession) {
-      setUser(JSON.parse(savedSession));
-      setNewUsername(JSON.parse(savedSession).username || '');
+      const parsed = JSON.parse(savedSession);
+      setUser(parsed);
+      setNewUsername(parsed.username || '');
+      setSenderName(parsed.sender_name || localStorage.getItem('app_sender_name') || '');
+      setSenderPhone(parsed.sender_phone || localStorage.getItem('app_sender_phone') || '');
     }
   }, []);
+
+  const handleUpdateSenderInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoadingSender(true);
+    const cleanName = senderName.trim();
+    const cleanPhone = senderPhone.trim();
+    try {
+      const { error } = await supabase
+        .from('app_users')
+        .update({ 
+          sender_name: cleanName, 
+          sender_phone: cleanPhone 
+        })
+        .eq('id', user.id);
+        
+      if (error) {
+        console.warn('Supabase update failed, falling back to local update:', error);
+      }
+      
+      const updatedUser = { 
+        ...user, 
+        sender_name: cleanName, 
+        sender_phone: cleanPhone 
+      };
+      setUser(updatedUser);
+      localStorage.setItem('app_session', JSON.stringify(updatedUser));
+      localStorage.setItem('app_sender_name', cleanName);
+      localStorage.setItem('app_sender_phone', cleanPhone);
+      if (onUpdateUser) onUpdateUser(updatedUser);
+      onNotify('Data pengirim berhasil disimpan.', 'success');
+    } catch (err: any) {
+      console.warn('Supabase update errored, falling back to local update:', err);
+      const updatedUser = { 
+        ...user, 
+        sender_name: cleanName, 
+        sender_phone: cleanPhone 
+      };
+      setUser(updatedUser);
+      localStorage.setItem('app_session', JSON.stringify(updatedUser));
+      localStorage.setItem('app_sender_name', cleanName);
+      localStorage.setItem('app_sender_phone', cleanPhone);
+      if (onUpdateUser) onUpdateUser(updatedUser);
+      onNotify('Data pengirim berhasil disimpan.', 'success');
+    } finally {
+      setLoadingSender(false);
+    }
+  };
 
   const handleUpdateUsername = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,6 +191,54 @@ const Settings: React.FC<Props> = ({ onNotify, onUpdateUser }) => {
                       className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:shadow-xl hover:translate-y-[-1px] active:translate-y-0 transition-all"
                     >
                       {loadingUsername ? <Loader2 className="animate-spin w-3 h-3" /> : <Save size={14} />} Ganti Username
+                    </button>
+                  </div>
+                </form>
+
+                <div className="h-px bg-slate-100 my-8"></div>
+
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                  <Truck size={18} className="text-indigo-600" /> Default Pengirim (Surat Jalan)
+                </h3>
+
+                <form onSubmit={handleUpdateSenderInfo} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] ml-1">Nama Pengirim</label>
+                      <div className="relative">
+                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-400" size={14} />
+                        <input 
+                          type="text" 
+                          value={senderName}
+                          onChange={(e) => setSenderName(e.target.value)}
+                          className="w-full pl-10 pr-4 py-3 bg-indigo-50/30 border border-indigo-100 rounded-xl text-xs font-black text-indigo-900 outline-none focus:ring-2 ring-indigo-500 transition-all uppercase"
+                          placeholder="Contoh: Budi Prasetyo"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] ml-1">No. Telp Pengirim</label>
+                      <div className="relative">
+                        <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-400" size={14} />
+                        <input 
+                          type="text" 
+                          value={senderPhone}
+                          onChange={(e) => setSenderPhone(e.target.value)}
+                          className="w-full pl-10 pr-4 py-3 bg-indigo-50/30 border border-indigo-100 rounded-xl text-xs font-black text-indigo-900 outline-none focus:ring-2 ring-indigo-500 transition-all"
+                          placeholder="Contoh: 0812XXXXXXXX"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-start">
+                    <button 
+                      type="submit" 
+                      disabled={loadingSender}
+                      className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:shadow-xl hover:translate-y-[-1px] active:translate-y-0 transition-all"
+                    >
+                      {loadingSender ? <Loader2 className="animate-spin w-3 h-3" /> : <Save size={14} />} Simpan Pengirim
                     </button>
                   </div>
                 </form>

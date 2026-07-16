@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Image as ImageIcon, FileText, ArrowLeft } from 'lucide-react';
+import { Image as ImageIcon, FileText, ArrowLeft, Printer } from 'lucide-react';
 import { Order, Customer } from '@/types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -60,7 +60,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
     const originalScrollY = window.scrollY;
     
     // Siapkan element untuk capture agar rapi dan lebar konsisten
-    invoiceRef.current.style.width = '750px'; 
+    invoiceRef.current.style.width = '580px'; 
     invoiceRef.current.style.maxWidth = 'none';
     invoiceRef.current.style.borderRadius = '0px';
     invoiceRef.current.style.border = 'none';
@@ -75,8 +75,8 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        width: 750,
-        windowWidth: 750,
+        width: 580,
+        windowWidth: 580,
       });
       
       // Kembalikan gaya asli
@@ -122,7 +122,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
       const pdf = new jsPDF({
         orientation: 'p',
         unit: 'mm',
-        format: 'a4'
+        format: 'a5'
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -150,6 +150,34 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-20">
+        {/* Style block for A5 printing and print hidden styles */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media print {
+            body * {
+              visibility: hidden;
+            }
+            .print-area-target, .print-area-target * {
+              visibility: visible;
+            }
+            .print-area-target {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 148mm !important;
+              min-height: 210mm !important;
+              padding: 8mm !important;
+              margin: 0 !important;
+              border: none !important;
+              box-shadow: none !important;
+              background-color: #ffffff !important;
+            }
+            @page {
+              size: A5 portrait;
+              margin: 0;
+            }
+          }
+        `}} />
+
         <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm sticky top-16 z-20">
             <div className="flex items-center gap-4 px-2">
                 {onBack && (
@@ -160,18 +188,22 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                     <ArrowLeft size={18} />
                   </button>
                 )}
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                  {isSuratJalan ? 'Pratinjau Surat Jalan' : 'Detail Nota'}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                    {isSuratJalan ? 'Pratinjau Surat Jalan' : 'Detail Nota'}
+                  </h3>
+                  <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[8px] font-black uppercase tracking-wider">A5</span>
+                </div>
             </div>
             <div className="flex gap-2">
+                <button onClick={() => window.print()} title="Cetak Surat Jalan / Nota" className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all flex items-center gap-2 font-black text-[10px] uppercase tracking-wider"><Printer size={16} /> Cetak (A5)</button>
                 <button onClick={handleDownloadJPG} title="Download Gambar" className="p-3 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 active:scale-95 transition-all"><ImageIcon size={18} /></button>
                 <button onClick={handleDownloadPDF} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-black text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"><FileText size={16} /> DOWNLOAD PDF</button>
             </div>
         </div>
-
+ 
         <div className="overflow-x-auto no-scrollbar py-2 -mx-4 px-4 md:mx-0 md:px-0">
-          <div ref={invoiceRef} className="bg-white p-8 md:p-12 text-slate-900 shadow-sm mx-auto border border-slate-100" style={{ width: '100%', maxWidth: '750px', borderRadius: '0px' }}>
+          <div ref={invoiceRef} className="bg-white p-6 md:p-10 text-slate-900 shadow-sm mx-auto border border-slate-100 print-area-target" style={{ width: '100%', maxWidth: '580px', borderRadius: '0px' }}>
             {isSuratJalan ? (
               /* ================= PHYSICAL SURAT JALAN BOOK STYLE ================= */
               <div className="font-sans text-slate-900 space-y-6">
@@ -198,7 +230,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                       </span>
                     </div>
                     <div className="flex">
-                      <span className="w-28 font-bold">Nomor Hp</span>
+                      <span className="w-28 font-bold">No. Telp</span>
                       <span className="mr-1">:</span>
                       <span className="flex-1 font-semibold border-b border-dashed border-slate-400">
                         {sjMeta.senderPhone || '_______________________'}
@@ -229,6 +261,13 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                         {customerPhone || '_______________________'}
                       </span>
                     </div>
+                    <div className="flex">
+                      <span className="w-20 font-bold">Alamat</span>
+                      <span className="mr-1">:</span>
+                      <span className="flex-1 font-semibold border-b border-dashed border-slate-400 text-slate-900 uppercase">
+                        {order.customerAddress || '_______________________'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -243,8 +282,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                     <thead>
                       <tr className="bg-slate-100/80 border-b-2 border-slate-950 text-[10px] font-extrabold tracking-wider uppercase text-slate-900 text-center">
                         <th className="py-2.5 px-3 border-r-2 border-slate-950" style={{ width: '25%' }}>BANYAKNYA</th>
-                        <th className="py-2.5 px-3 border-r-2 border-slate-950 text-left" style={{ width: '45%' }}>NAMA BARANG</th>
-                        <th className="py-2.5 px-3 text-left" style={{ width: '30%' }}>ALAMAT</th>
+                        <th className="py-2.5 px-3 text-left" style={{ width: '75%' }}>NAMA BARANG</th>
                       </tr>
                     </thead>
                     <tbody className="text-[11px] font-semibold">
@@ -256,9 +294,9 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                           return qty > 0;
                         });
 
-                        // Pad rows to reach at least 7 rows total
-                        const minRows = 7;
-                        const paddedItems: any[] = [...activeItems];
+                        // Pad rows to reach exactly 4 rows total
+                        const minRows = 4;
+                        const paddedItems: any[] = activeItems.slice(0, 4);
                         while (paddedItems.length < minRows) {
                           paddedItems.push(null);
                         }
@@ -271,24 +309,20 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                             
                             const parsed = parseItemNameAndUnit(item.name);
                             return (
-                              <tr key={item.id || idx} className="h-10 text-center border-b border-slate-200 last:border-b-0">
+                              <tr key={item.id || idx} className="h-10 text-center">
                                 <td className="px-3 border-r-2 border-slate-950 font-black text-xs text-slate-900 whitespace-nowrap">
                                   {qty} {parsed.unit.toUpperCase()}
                                 </td>
-                                <td className="px-3 border-r-2 border-slate-950 text-left font-bold uppercase text-slate-900">
+                                <td className="px-3 text-left font-bold uppercase text-slate-900">
                                   {parsed.name}
-                                </td>
-                                <td className="px-3 text-left text-[10px] leading-snug text-slate-700 uppercase">
-                                  {idx === 0 ? (order.customerAddress || 'Alamat tidak dicantumkan') : ''}
                                 </td>
                               </tr>
                             );
                           } else {
                             return (
-                              <tr key={`empty-${idx}`} className="h-10 text-center border-b border-slate-200 last:border-b-0">
+                              <tr key={`empty-${idx}`} className="h-10 text-center">
                                 <td className="px-3 border-r-2 border-slate-950">&nbsp;</td>
-                                <td className="px-3 border-r-2 border-slate-950">&nbsp;</td>
-                                <td className="px-3">&nbsp;</td>
+                                <td className="px-3 text-left">&nbsp;</td>
                               </tr>
                             );
                           }

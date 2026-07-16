@@ -30,8 +30,8 @@ const ManualInvoiceManager: React.FC<Props> = ({ products, customers, onNotify, 
   const [sjDate, setSjDate] = useState(new Date().toISOString().split('T')[0]);
   const [sjCustomerName, setSjCustomerName] = useState('');
   const [sjCustomerAddress, setSjCustomerAddress] = useState('');
-  const [sjDriver, setSjDriver] = useState('');
-  const [sjVehiclePlate, setSjVehiclePlate] = useState('');
+  const [sjDriver, setSjDriver] = useState(() => localStorage.getItem('app_sender_name') || '');
+  const [sjVehiclePlate, setSjVehiclePlate] = useState(() => localStorage.getItem('app_sender_phone') || '');
   const [sjNotes, setSjNotes] = useState('');
   const [sjItems, setSjItems] = useState<Partial<{ id: string, name: string, quantity: number, unit: string }>[]>([
     { id: `item_${Date.now()}_1`, name: '', quantity: undefined, unit: 'BAL' }
@@ -496,12 +496,26 @@ const ManualInvoiceManager: React.FC<Props> = ({ products, customers, onNotify, 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-50">
               <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Pengirim</label>
+                <div className="flex justify-between items-center px-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Nama Pengirim</label>
+                  {localStorage.getItem('app_sender_name') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSjDriver(localStorage.getItem('app_sender_name') || '');
+                        setSjVehiclePlate(localStorage.getItem('app_sender_phone') || '');
+                      }}
+                      className="text-[8px] font-black text-indigo-600 uppercase tracking-wider hover:underline"
+                    >
+                      Gunakan Default Akun
+                    </button>
+                  )}
+                </div>
                 <input placeholder="Masukkan nama pengirim..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500 uppercase" value={sjDriver} onChange={e => setSjDriver(e.target.value)} />
               </div>
               <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Nomor HP Pengirim</label>
-                <input placeholder="Masukkan nomor HP pengirim..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500 uppercase" value={sjVehiclePlate} onChange={e => setSjVehiclePlate(e.target.value)} />
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 font-sans">No. Telp Pengirim</label>
+                <input placeholder="Masukkan No. Telp pengirim..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-xs focus:border-indigo-500 uppercase" value={sjVehiclePlate} onChange={e => setSjVehiclePlate(e.target.value)} />
               </div>
             </div>
 

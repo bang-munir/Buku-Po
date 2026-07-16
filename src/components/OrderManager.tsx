@@ -55,16 +55,33 @@ const OrderManager: React.FC<Props> = ({
   const [orderItems, setOrderItems] = useState<{ productId: string, qty: number | string, name: string, price: number }[]>([]);
   const [notes, setNotes] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
-  const [downPayment, setDownPayment] = useState(0);
+  const [downPayment, setDownPayment] = useState<number | ''>('');
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [selectedFormCategory, setSelectedFormCategory] = useState<string>('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close product dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowProductDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // States for Progress Modal (Kerjakan/Kirim)
   const [progressOrder, setProgressOrder] = useState<Order | null>(null);
   const [progressQtys, setProgressQtys] = useState<Record<string, number | string>>({});
   const [progressMode, setProgressMode] = useState<'START' | 'SHIP'>('START');
-  const [progressUseDeposit, setProgressUseDeposit] = useState(0);
+  const [progressUseDeposit, setProgressUseDeposit] = useState<number | ''>('');
+  const [shippingSenderName, setShippingSenderName] = useState(() => localStorage.getItem('app_sender_name') || '');
+  const [shippingSenderPhone, setShippingSenderPhone] = useState(() => localStorage.getItem('app_sender_phone') || '');
+  const [shippingRemarks, setShippingRemarks] = useState('');
 
   useEffect(() => {
     if (editingOrder) {
@@ -77,7 +94,7 @@ const OrderManager: React.FC<Props> = ({
       })) : []);
       setNotes(editingOrder.notes || '');
       setOrderDate(new Date(editingOrder.orderDate).toISOString().split('T')[0]);
-      setDownPayment(editingOrder.downPayment || 0);
+      setDownPayment(editingOrder.downPayment || '');
       setIsFormOpen(true);
     }
   }, [editingOrder]);
@@ -97,13 +114,16 @@ const OrderManager: React.FC<Props> = ({
   }, [totalBelanja]);
 
   const addProductToItems = (p: Product) => {
-    const exists = orderItems.find(oi => oi.productId === p.id);
-    if (!exists) {
+    const existsIndex = orderItems.findIndex(oi => oi.productId === p.id);
+    if (existsIndex > -1) {
+      const updated = [...orderItems];
+      const currentQty = Number(updated[existsIndex].qty) || 0;
+      updated[existsIndex].qty = currentQty + 1;
+      setOrderItems(updated);
+    } else {
       const price = selectedCustomer?.type === LocationType.LUAR_KOTA ? p.priceLuarKota : p.priceJakarta;
       setOrderItems([...orderItems, { productId: p.id, name: p.name, qty: '', price: price }]);
     }
-    setProductSearch('');
-    setShowProductDropdown(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -147,9 +167,9 @@ const OrderManager: React.FC<Props> = ({
         status: editingOrder?.status || OrderStatus.PENDING,
         items: items,
         subtotal: totalBelanja,
-        downPayment: downPayment,
+        downPayment: Number(downPayment) || 0,
         payments: editingOrder ? editingOrder.payments : [],
-        total: totalBelanja - downPayment - (editingOrder?.depositUsed || 0),
+        total: totalBelanja - (Number(downPayment) || 0) - (editingOrder?.depositUsed || 0),
         notes: notes.trim(),
         depositUsed: editingOrder?.depositUsed || 0
       };
@@ -232,7 +252,12 @@ const OrderManager: React.FC<Props> = ({
         downPayment: (progressOrder.downPayment || 0) + balanceUsed,
         depositUsed: (progressOrder.depositUsed || 0) + balanceUsed,
         total: Math.max(0, (progressOrder.total || 0) - balanceUsed),
-        payments: newPayments
+        payments: newPayments,
+        notes: progressMode === 'SHIP' ? JSON.stringify({
+          senderName: shippingSenderName.trim(),
+          senderPhone: shippingSenderPhone.trim(),
+          remarks: shippingRemarks.trim()
+        }) : progressOrder.notes
       };
 
       await onUpdateOrder(finalOrder);
@@ -252,7 +277,7 @@ const OrderManager: React.FC<Props> = ({
 
       setProgressOrder(null);
       setProgressQtys({});
-      setProgressUseDeposit(0);
+      setProgressUseDeposit('');
     } catch (err: any) {
       console.error("Progress update error:", err);
     } finally {
@@ -264,9 +289,10 @@ const OrderManager: React.FC<Props> = ({
     setIsFormOpen(false);
     setSelectedCustomerId('');
     setOrderItems([]);
-    setDownPayment(0);
+    setDownPayment('');
     setNotes('');
     setProductSearch('');
+    setSelectedFormCategory('');
     setIsSubmitting(false);
     setFormError(null);
     setEditingOrder(null);
@@ -348,14 +374,100 @@ const OrderManager: React.FC<Props> = ({
                   </div>
                   {showProductDropdown && (
                     <div className="absolute z-50 w-full mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-40 overflow-y-auto">
-                      {state.products.filter(p => (p.name || '').toLowerCase().includes(productSearch.toLowerCase())).map(p => (
-                        <button key={p.id} type="button" onClick={() => addProductToItems(p)} className="w-full text-left px-4 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 font-bold text-[10px] flex justify-between items-center transition-colors">
-                          <span className="text-slate-700">{p.name}</span>
-                          <span className="text-[8px] font-black text-indigo-500 uppercase">Rp {(state.customers.find(c => c.id === selectedCustomerId)?.type === LocationType.LUAR_KOTA ? p.priceLuarKota : p.priceJakarta).toLocaleString()}</span>
-                        </button>
-                      ))}
+                      {state.products.filter(p => (p.name || '').toLowerCase().includes(productSearch.toLowerCase())).map(p => {
+                        const orderItem = orderItems.find(oi => oi.productId === p.id);
+                        const qtyInOrder = orderItem ? Number(orderItem.qty) || 0 : 0;
+                        const price = state.customers.find(c => c.id === selectedCustomerId)?.type === LocationType.LUAR_KOTA ? p.priceLuarKota : p.priceJakarta;
+                        return (
+                          <button key={p.id} type="button" onClick={() => addProductToItems(p)} className="w-full text-left px-4 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 font-bold text-[10px] flex justify-between items-center transition-colors">
+                            <span className="text-slate-700 flex items-center gap-1.5">
+                              {p.name}
+                              {qtyInOrder > 0 && <span className="bg-indigo-600 text-white text-[8px] px-1.5 py-0.5 rounded-full">({qtyInOrder})</span>}
+                            </span>
+                            <span className="text-[8px] font-black text-indigo-500 uppercase">Rp {price ? price.toLocaleString() : 0}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
+                </div>
+
+                {/* Quick Catalog Selector */}
+                <div className="mt-2 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider ml-1">Pilih Cepat dari Katalog</p>
+                    {selectedFormCategory && (
+                      <button 
+                        type="button" 
+                        onClick={() => setSelectedFormCategory('')}
+                        className="text-[8px] font-black text-rose-500 uppercase hover:underline"
+                      >
+                        Reset Kategori
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-2.5 max-h-20 overflow-y-auto no-scrollbar">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFormCategory('')}
+                      className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border transition-all ${
+                        !selectedFormCategory
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-white text-slate-500 border-slate-150 hover:bg-slate-50'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    {state.categories.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedFormCategory(c.id)}
+                        className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border transition-all ${
+                          selectedFormCategory === c.id
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-150 hover:bg-slate-50'
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-36 overflow-y-auto p-1.5 bg-white rounded-xl border border-slate-100">
+                    {state.products
+                      .filter(p => !selectedFormCategory || p.categoryId === selectedFormCategory)
+                      .map(p => {
+                        const orderItem = orderItems.find(oi => oi.productId === p.id);
+                        const qtyInOrder = orderItem ? Number(orderItem.qty) || 0 : 0;
+                        const price = selectedCustomer?.type === LocationType.LUAR_KOTA ? p.priceLuarKota : p.priceJakarta;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => addProductToItems(p)}
+                            className={`p-2 rounded-xl border text-left transition-all flex flex-col justify-between h-14 relative ${
+                              qtyInOrder > 0
+                                ? 'bg-indigo-50/50 border-indigo-200 shadow-sm'
+                                : 'bg-white border-slate-100 hover:bg-slate-50 shadow-sm'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start w-full gap-1">
+                              <span className={`text-[9px] font-black uppercase truncate ${qtyInOrder > 0 ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                {p.name}
+                              </span>
+                              {qtyInOrder > 0 && (
+                                <span className="bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shrink-0">
+                                  {qtyInOrder}
+                                </span>
+                              )}
+                            </div>
+                            <span className={`text-[8px] font-black ${qtyInOrder > 0 ? 'text-indigo-600' : 'text-slate-400'}`}>
+                              Rp {price ? price.toLocaleString() : 0}
+                            </span>
+                          </button>
+                        );
+                      })}
+                  </div>
                 </div>
 
                 <div className="space-y-1 bg-slate-50 p-2 rounded-xl border border-slate-100 max-h-[250px] overflow-y-auto no-scrollbar">
@@ -511,7 +623,10 @@ const OrderManager: React.FC<Props> = ({
                                 setProgressOrder(o); 
                                 setProgressMode('SHIP'); 
                                 setProgressQtys(Object.fromEntries(o.items.map(i => [i.id, '']))); 
-                                setProgressUseDeposit(0);
+                                setProgressUseDeposit('');
+                                setShippingSenderName(localStorage.getItem('app_sender_name') || '');
+                                setShippingSenderPhone(localStorage.getItem('app_sender_phone') || '');
+                                setShippingRemarks('');
                               }} 
                               className="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[8px] font-black uppercase shadow-sm hover:bg-indigo-700"
                             >
@@ -748,45 +863,100 @@ const OrderManager: React.FC<Props> = ({
               </div>
 
               {progressMode === 'SHIP' && (
-                <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Wallet className="text-indigo-600" size={16} />
-                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Dp Masuk</span>
+                <>
+                  <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="text-indigo-600" size={16} />
+                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Dp Masuk</span>
+                      </div>
+                      {progressOrder && (
+                        <span className="text-[9px] font-bold text-slate-400">Tersedia: Rp {
+                          state.deposits
+                            .filter(d => d.customerId === progressOrder.customerId)
+                            .reduce((sum, d) => sum + (d.amount - d.usedAmount), 0)
+                            .toLocaleString()
+                        }</span>
+                      )}
                     </div>
-                    {progressOrder && (
-                      <span className="text-[9px] font-bold text-slate-400">Tersedia: Rp {
-                        state.deposits
-                          .filter(d => d.customerId === progressOrder.customerId)
-                          .reduce((sum, d) => sum + (d.amount - d.usedAmount), 0)
-                          .toLocaleString()
-                      }</span>
-                    )}
+                    
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-indigo-400 uppercase tracking-widest ml-1">Nominal Rp</label>
+                      <input 
+                        type="number" 
+                        placeholder="0" 
+                        className="w-full px-3 py-2.5 rounded-xl bg-white border border-indigo-100 font-black text-indigo-700 text-xs focus:ring-4 focus:ring-indigo-500/10 outline-none"
+                        value={progressUseDeposit ?? ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const num = Number(val);
+                          if (val === '') {
+                            setProgressUseDeposit(0);
+                          } else {
+                            const available = state.deposits
+                                .filter(d => d.customerId === progressOrder?.customerId)
+                                .reduce((sum, d) => sum + (d.amount - d.usedAmount), 0);
+                            setProgressUseDeposit(isNaN(num) ? 0 : Math.min(available, num));
+                          }
+                        }}
+                      />
+                    </div>
+                    <p className="text-[9px] font-bold text-indigo-500 italic">DP ini akan otomatis memotong saldo tabungan pelanggan.</p>
                   </div>
-                  
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black text-indigo-400 uppercase tracking-widest ml-1">Nominal Rp</label>
-                    <input 
-                      type="number" 
-                      placeholder="0" 
-                      className="w-full px-3 py-2.5 rounded-xl bg-white border border-indigo-100 font-black text-indigo-700 text-xs focus:ring-4 focus:ring-indigo-500/10 outline-none"
-                      value={progressUseDeposit ?? ''}
-                      onChange={e => {
-                        const val = e.target.value;
-                        const num = Number(val);
-                        if (val === '') {
-                          setProgressUseDeposit(0);
-                        } else {
-                          const available = state.deposits
-                              .filter(d => d.customerId === progressOrder?.customerId)
-                              .reduce((sum, d) => sum + (d.amount - d.usedAmount), 0);
-                          setProgressUseDeposit(isNaN(num) ? 0 : Math.min(available, num));
-                        }
-                      }}
-                    />
+
+                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4">
+                    <p className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Detail Pengiriman</p>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center px-1">
+                          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Nama Pengirim</label>
+                          {localStorage.getItem('app_sender_name') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShippingSenderName(localStorage.getItem('app_sender_name') || '');
+                                setShippingSenderPhone(localStorage.getItem('app_sender_phone') || '');
+                              }}
+                              className="text-[8px] font-black text-indigo-600 uppercase tracking-wider hover:underline"
+                            >
+                              Gunakan Default
+                            </button>
+                          )}
+                        </div>
+                        <input 
+                          type="text"
+                          placeholder="Nama pengirim..."
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-xs uppercase focus:ring-2 focus:ring-indigo-500 outline-none"
+                          value={shippingSenderName}
+                          onChange={e => setShippingSenderName(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">No. Telp Pengirim</label>
+                        <input 
+                          type="text"
+                          placeholder="No. Telp pengirim..."
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-xs uppercase focus:ring-2 focus:ring-indigo-500 outline-none"
+                          value={shippingSenderPhone}
+                          onChange={e => setShippingSenderPhone(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Keterangan Kirim (Opsional)</label>
+                      <input 
+                        type="text"
+                        placeholder="Keterangan / catatan tambahan..."
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
+                        value={shippingRemarks}
+                        onChange={e => setShippingRemarks(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <p className="text-[9px] font-bold text-indigo-500 italic">DP ini akan otomatis memotong saldo tabungan pelanggan.</p>
-                </div>
+                </>
               )}
 
               <div className="pt-4 border-t border-slate-50 flex justify-end">

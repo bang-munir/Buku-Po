@@ -487,7 +487,7 @@ const App: React.FC = () => {
                         onDeleteOrder={deleteOrderWithRefund} 
                         onUpdateDeposit={(d) => dbService.upsertDeposit(d).then(() => loadAllData(true)).catch(e => { showNotify(e.message, "error"); throw e; })}
                         onViewInvoice={(o) => setState(p => ({...p, activeOrder: o, view: 'invoice_detail', invoiceMode: 'full', lastShipmentQtys: null, lastShipmentDP: null, autoDownloadInvoice: false}))} 
-                        onViewShippingInvoice={(o, qtys, dp) => setState(p => ({...p, activeOrder: o, view: 'invoice_detail', invoiceMode: 'shipping', lastShipmentQtys: qtys || null, lastShipmentDP: dp || null, autoDownloadInvoice: false}))}
+                        onViewShippingInvoice={(o, qtys, dp) => setState(p => ({...p, activeOrder: o, view: 'invoice_detail', invoiceMode: 'full', lastShipmentQtys: qtys || null, lastShipmentDP: dp || null, autoDownloadInvoice: false}))}
                         onNotify={showNotify}
                         requestConfirm={(title, message, onConfirm, type) => {
                           setConfirmDialog({

@@ -352,6 +352,129 @@ const PaymentManager: React.FC<Props> = ({
     }
   };
 
+  const handleDownloadAllDeposits = async () => {
+    try {
+      const filtered = state.deposits.filter(d => {
+        const dDate = new Date(d.date);
+        if (startDate && dDate < new Date(startDate)) return false;
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59);
+          if (dDate > end) return false;
+        }
+        if (searchTerm) {
+          const name = d.customerName || '';
+          return name.toLowerCase().includes(searchTerm.toLowerCase());
+        }
+        return true;
+      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      if (filtered.length === 0) {
+        onNotify("Tidak ada data DP Masuk untuk diunduh", "info");
+        return;
+      }
+
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.width;
+      const margin = 14;
+
+      doc.setFillColor(79, 70, 229);
+      doc.rect(0, 0, pageWidth, 45, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('LAPORAN SEMUA DP MASUK', margin, 20);
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(238, 242, 255);
+      doc.text(`Periode: ${startDate || 'Awal'} s/d ${endDate || 'Sekarang'}`, margin, 28);
+      doc.text('Aplikasi Buku PO Online - OrderPro', margin, 33);
+      
+      doc.setFontSize(8);
+      doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, pageWidth - margin, 20, { align: 'right' });
+
+      const totalAmount = filtered.reduce((sum, d) => sum + d.amount, 0);
+      const totalUsed = filtered.reduce((sum, d) => sum + d.usedAmount, 0);
+      const totalAvailable = totalAmount - totalUsed;
+
+      const cardY = 55;
+      const cardW = (pageWidth - (margin * 2) - 8) / 3;
+      const cardH = 22;
+
+      doc.setFillColor(240, 253, 244);
+      doc.roundedRect(margin, cardY, cardW, cardH, 2, 2, 'F');
+      doc.setTextColor(21, 128, 61);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TOTAL DP MASUK', margin + 4, cardY + 7);
+      doc.setFontSize(10);
+      doc.text(`Rp ${totalAmount.toLocaleString()}`, margin + 4, cardY + 15);
+
+      doc.setFillColor(254, 242, 242);
+      doc.roundedRect(margin + cardW + 4, cardY, cardW, cardH, 2, 2, 'F');
+      doc.setTextColor(185, 28, 28);
+      doc.setFontSize(7);
+      doc.text('TOTAL DIGUNAKAN', margin + cardW + 8, cardY + 7);
+      doc.setFontSize(10);
+      doc.text(`Rp ${totalUsed.toLocaleString()}`, margin + cardW + 8, cardY + 15);
+
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(margin + (cardW * 2) + 8, cardY, cardW, cardH, 2, 2, 'F');
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(7);
+      doc.text('TOTAL SISA SALDO', margin + (cardW * 2) + 12, cardY + 7);
+      doc.setFontSize(10);
+      doc.text(`Rp ${totalAvailable.toLocaleString()}`, margin + (cardW * 2) + 12, cardY + 15);
+
+      autoTable(doc, {
+        startY: cardY + cardH + 12,
+        head: [['Tanggal', 'Pelanggan', 'Nominal DP', 'Digunakan', 'Sisa Saldo', 'Keterangan']],
+        body: filtered.map(item => [
+          new Date(item.date).toLocaleDateString('id-ID'),
+          item.customerName || 'Unknown',
+          { content: item.amount.toLocaleString(), styles: { textColor: [21, 128, 61], fontStyle: 'bold' } },
+          item.usedAmount.toLocaleString(),
+          (item.amount - item.usedAmount).toLocaleString(),
+          item.notes || '-'
+        ]),
+        foot: [[
+          { content: 'TOTAL', colSpan: 2, styles: { halign: 'right' } },
+          { content: totalAmount.toLocaleString(), styles: { halign: 'left' } },
+          { content: totalUsed.toLocaleString(), styles: { halign: 'left' } },
+          { content: totalAvailable.toLocaleString(), styles: { halign: 'left' } },
+          ''
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [51, 65, 85], fontSize: 8, halign: 'center' },
+        footStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold' },
+        styles: { fontSize: 7, cellPadding: 3 },
+        columnStyles: {
+          2: { halign: 'left' },
+          3: { halign: 'left' },
+          4: { halign: 'left' },
+          5: { cellWidth: 50 }
+        }
+      });
+
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Halaman ${i} dari ${totalPages}`, pageWidth / 2, 287, { align: 'center' });
+        doc.text('© OrderPro - Generated Report', margin, 287);
+      }
+
+      await savePDF(doc, `Semua_DP_Masuk_${new Date().toISOString().split('T')[0]}.pdf`);
+      onNotify("PDF Semua DP Masuk berhasil diunduh", "success");
+    } catch (err: any) {
+      console.error("PDF Download All Error:", err);
+      onNotify(`Gagal download PDF: ${err.message || 'Error tidak diketahui'}`, "error");
+    }
+  };
+
   const handleSaveDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomerId) {
@@ -627,11 +750,17 @@ const PaymentManager: React.FC<Props> = ({
               <div>
                  <h3 className="text-sm font-black text-slate-900 uppercase">Input DP Masuk</h3>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full sm:w-auto">
                  <div className="relative flex-1 sm:w-48">
                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
                    <input type="text" placeholder="Cari..." className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-xs font-bold outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                  </div>
+                 <button 
+                   onClick={handleDownloadAllDeposits}
+                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all"
+                 >
+                     <Download size={14}/> Download Semua
+                 </button>
                  <button 
                    onClick={() => {
                      setEditingDeposit(null);

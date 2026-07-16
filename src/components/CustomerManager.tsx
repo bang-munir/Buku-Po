@@ -92,11 +92,11 @@ const CustomerManager: React.FC<Props> = ({ customers, onAdd, onUpdate, onDelete
               </div>
 
               <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Tlpn <span className="lowercase font-medium opacity-50">(Opsional)</span></label>
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">No Telp <span className="lowercase font-medium opacity-50">(Opsional)</span></label>
                 <input 
                   type="text" 
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white outline-none font-bold text-slate-700 text-xs shadow-sm" 
-                  placeholder="No. Telepon / Hp..."
+                  placeholder="No. Telp..."
                   value={formData.email} 
                   onChange={e => setFormData({...formData, email: e.target.value})} 
                 />
@@ -151,7 +151,7 @@ const CustomerManager: React.FC<Props> = ({ customers, onAdd, onUpdate, onDelete
                         }`}>
                           {c.type}
                         </span>
-                        {c.email && <span className="text-[9px] text-slate-300 font-bold truncate max-w-[100px]">Tlpn: {c.email}</span>}
+                        {c.email && <span className="text-[9px] text-slate-300 font-bold truncate max-w-[100px]">No Telp: {c.email}</span>}
                       </div>
                     </div>
                   </div>
@@ -214,7 +214,7 @@ const CustomerManager: React.FC<Props> = ({ customers, onAdd, onUpdate, onDelete
                         </div>
                         <div className="min-w-0">
                           <p className="font-bold text-slate-800 truncate leading-tight">{c.name}</p>
-                          {c.email && <p className="text-[9px] text-slate-400 flex items-center gap-1 font-bold truncate tracking-tight uppercase">Tlpn: {c.email}</p>}
+                          {c.email && <p className="text-[9px] text-slate-400 flex items-center gap-1 font-bold truncate tracking-tight uppercase">No Telp: {c.email}</p>}
                         </div>
                       </div>
                     </td>
