@@ -25,8 +25,18 @@ const InvoiceBook: React.FC<InvoiceBookProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'month' | 'date'>('all');
   const [filterMonth, setFilterMonth] = useState<string>(''); // format: YYYY-MM
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  const formatDateString = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dVal = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dVal}`;
+  };
 
   const monthsList = React.useMemo(() => {
     const list = [];
@@ -51,14 +61,22 @@ const InvoiceBook: React.FC<InvoiceBookProps> = ({
       order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCustomer = filterCustomer === 'all' || order.customerId === filterCustomer;
     
-    let matchesMonth = true;
-    if (filterMonth) {
+    let matchesDateRange = true;
+    if (filterMode === 'month' && filterMonth) {
       const orderDate = new Date(order.orderDate);
       const monthPrefix = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
-      matchesMonth = monthPrefix === filterMonth;
+      matchesDateRange = monthPrefix === filterMonth;
+    } else if (filterMode === 'date') {
+      const orderDateStr = order.orderDate.split('T')[0];
+      if (startDate && orderDateStr < startDate) {
+        matchesDateRange = false;
+      }
+      if (endDate && orderDateStr > endDate) {
+        matchesDateRange = false;
+      }
     }
 
-    return matchesSearch && matchesCustomer && matchesMonth;
+    return matchesSearch && matchesCustomer && matchesDateRange;
   });
 
   const downloadPDF = async (ordersToExport: Order[], title: string) => {
@@ -189,8 +207,8 @@ const InvoiceBook: React.FC<InvoiceBookProps> = ({
   return (
     <div className="space-y-6">
       {/* Header & Controls */}
-      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
               <FileText className="text-indigo-600" size={24} />
@@ -199,8 +217,22 @@ const InvoiceBook: React.FC<InvoiceBookProps> = ({
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 pl-8">Riwayat Penjualan Terkirim</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 lg:min-w-[200px]">
+          <button 
+            onClick={() => downloadPDF(filteredOrders, filterCustomer === 'all' ? 'Semua Nota' : state.customers.find(c => c.id === filterCustomer)?.name || 'Pelanggan')}
+            className="flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95 self-stretch md:self-auto"
+          >
+            <Download size={14} /> Download PDF ({filteredOrders.length} Nota)
+          </button>
+        </div>
+
+        {/* Filters Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-2 border-t border-slate-100">
+          {/* Search bar */}
+          <div className="lg:col-span-3 space-y-1">
+            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+              <Search size={10} className="text-indigo-400" /> Cari Nota/Pelanggan
+            </label>
+            <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input
                 type="text"
@@ -210,41 +242,125 @@ const InvoiceBook: React.FC<InvoiceBookProps> = ({
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+          </div>
 
-            <div className="relative min-w-[150px]">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <select
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-xs font-black appearance-none focus:ring-2 focus:ring-indigo-500/20"
-                value={filterMonth}
-                onChange={(e) => setFilterMonth(e.target.value)}
-              >
-                <option value="">SEMUA BULAN</option>
-                {monthsList.map(m => (
-                  <option key={m.val} value={m.val}>{m.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="relative min-w-[150px]">
+          {/* Customer filter */}
+          <div className="lg:col-span-3 space-y-1">
+            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+              <User size={10} className="text-indigo-400" /> Pilih Pelanggan
+            </label>
+            <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <select
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-xs font-black appearance-none focus:ring-2 focus:ring-indigo-500/20"
                 value={filterCustomer}
                 onChange={(e) => setFilterCustomer(e.target.value)}
               >
-                <option value="all text-slate-400">PILIH PELANGGAN</option>
+                <option value="all">SEMUA PELANGGAN</option>
                 {state.customers.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
+          </div>
 
-            <button 
-              onClick={() => downloadPDF(filteredOrders, filterCustomer === 'all' ? 'Semua Nota' : state.customers.find(c => c.id === filterCustomer)?.name || 'Pelanggan')}
-              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95"
-            >
-              <Download size={14} /> Download PDF
-            </button>
+          {/* Filter Mode */}
+          <div className="lg:col-span-3 space-y-1">
+            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+              <Calendar size={10} className="text-indigo-400" /> Metode Filter Tanggal
+            </label>
+            <div className="flex bg-slate-100/80 p-1 rounded-xl gap-1 h-[38px] items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode('all');
+                  setFilterMonth('');
+                  setStartDate('');
+                  setEndDate('');
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${filterMode === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                Semua
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode('month');
+                  const now = new Date();
+                  const val = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                  setFilterMonth(val);
+                  setStartDate('');
+                  setEndDate('');
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${filterMode === 'month' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                Bulan
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode('date');
+                  setFilterMonth('');
+                  const now = new Date();
+                  setStartDate(formatDateString(new Date(now.getFullYear(), now.getMonth(), 1)));
+                  setEndDate(formatDateString(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${filterMode === 'date' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                Tanggal
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Inputs (Bulan select or Dari-Sampai inputs) */}
+          <div className="lg:col-span-3">
+            {filterMode === 'all' ? (
+              <div className="flex items-center h-full pt-4 px-1">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider italic">
+                  ✓ Menampilkan semua tanggal
+                </p>
+              </div>
+            ) : filterMode === 'month' ? (
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                  <Calendar size={10} className="text-indigo-400" /> Pilih Bulan
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <select
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-xs font-black appearance-none focus:ring-2 focus:ring-indigo-500/20"
+                    value={filterMonth}
+                    onChange={(e) => setFilterMonth(e.target.value)}
+                  >
+                    <option value="">SEMUA BULAN</option>
+                    {monthsList.map(m => (
+                      <option key={m.val} value={m.val}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Dari</label>
+                  <input 
+                    type="date" 
+                    className="w-full px-3 py-2 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/20"
+                    value={startDate} 
+                    onChange={e => setStartDate(e.target.value)} 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sampai</label>
+                  <input 
+                    type="date" 
+                    className="w-full px-3 py-2 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/20"
+                    value={endDate} 
+                    onChange={e => setEndDate(e.target.value)} 
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
