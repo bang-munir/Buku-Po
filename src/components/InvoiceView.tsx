@@ -55,47 +55,61 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
   const captureInvoice = useCallback(async () => {
     if (!invoiceRef.current) return null;
     
-    // Simpan gaya asli
-    const originalStyle = invoiceRef.current.style.cssText;
-    const originalScrollY = window.scrollY;
+    // Clone element untuk ditaruh di body (menghindari overflow parent clipping)
+    const originalEl = invoiceRef.current;
+    const clone = originalEl.cloneNode(true) as HTMLDivElement;
     
-    // Siapkan element untuk capture agar rapi dan lebar konsisten
     const targetWidth = isSuratJalan ? '780px' : '580px';
     const targetWidthVal = isSuratJalan ? 780 : 580;
-
-    invoiceRef.current.style.width = targetWidth; 
-    invoiceRef.current.style.maxWidth = 'none';
-    invoiceRef.current.style.borderRadius = '0px';
-    invoiceRef.current.style.border = 'none';
-    invoiceRef.current.style.boxShadow = 'none';
-    invoiceRef.current.style.backgroundColor = '#ffffff';
     
-    window.scrollTo(0, 0);
-
+    // Atur gaya clone agar ter-layout utuh tanpa scrollbar atau pembatasan tinggi
+    // Menggunakan position: absolute agar tingginya tidak dibatasi oleh viewport browser
+    clone.style.width = targetWidth;
+    clone.style.maxWidth = 'none';
+    clone.style.height = 'auto';
+    clone.style.maxHeight = 'none';
+    clone.style.borderRadius = '0px';
+    clone.style.border = 'none';
+    clone.style.boxShadow = 'none';
+    clone.style.backgroundColor = '#ffffff';
+    clone.style.position = 'absolute';
+    clone.style.left = '0px';
+    clone.style.top = '0px';
+    clone.style.zIndex = '-9999';
+    clone.style.pointerEvents = 'none';
+    clone.style.visibility = 'visible';
+    
+    document.body.appendChild(clone);
+    
+    // Beri jeda kecil agar browser merender elemen dengan benar sebelum di-capture
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Ukur tinggi asli elemen tanpa dibatasi oleh viewport
+    const heightVal = Math.max(clone.scrollHeight, clone.offsetHeight, 450);
+    
     try {
-      const canvas = await html2canvas(invoiceRef.current, { 
+      const canvas = await html2canvas(clone, { 
         scale: 3, 
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
         width: targetWidthVal,
+        height: heightVal,
         windowWidth: targetWidthVal,
-        height: invoiceRef.current.scrollHeight,
-        windowHeight: invoiceRef.current.scrollHeight,
+        windowHeight: heightVal,
         scrollX: 0,
         scrollY: 0,
         x: 0,
         y: 0,
       });
       
-      // Kembalikan gaya asli
-      invoiceRef.current.style.cssText = originalStyle;
-      window.scrollTo(0, originalScrollY);
+      document.body.removeChild(clone);
       return canvas;
     } catch (e) {
       console.error("Capture Error:", e);
-      invoiceRef.current.style.cssText = originalStyle;
-      window.scrollTo(0, originalScrollY);
+      if (document.body.contains(clone)) {
+        document.body.removeChild(clone);
+      }
       return null;
     }
   }, [isSuratJalan]);
@@ -137,19 +151,24 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       
-      // Hitung dimensi agar tetap mempertahankan aspek rasio gambar
-      let printWidth = pageWidth;
-      let printHeight = (canvas.height * pageWidth) / canvas.width;
+      // Gunakan margin 10mm untuk tampilan profesional
+      const margin = 10;
+      const maxWidth = pageWidth - (2 * margin);
+      const maxHeight = pageHeight - (2 * margin);
       
-      // Jika tinggi gambar melebihi batas tinggi halaman PDF, sesuaikan skalanya
-      if (printHeight > pageHeight) {
-        printHeight = pageHeight;
-        printWidth = (canvas.width * pageHeight) / canvas.height;
+      // Hitung dimensi agar tetap mempertahankan aspek rasio gambar asli
+      let printWidth = maxWidth;
+      let printHeight = (canvas.height * maxWidth) / canvas.width;
+      
+      // Jika tinggi gambar melebihi batas maksimal tinggi halaman PDF, perkecil sesuai rasio
+      if (printHeight > maxHeight) {
+        printHeight = maxHeight;
+        printWidth = (canvas.width * maxHeight) / canvas.height;
       }
       
-      // Posisikan di tengah halaman
-      const xOffset = (pageWidth - printWidth) / 2;
-      const yOffset = (pageHeight - printHeight) / 2;
+      // Posisikan gambar di tengah-tengah halaman (center-aligned secara horizontal & vertikal)
+      const xOffset = margin + (maxWidth - printWidth) / 2;
+      const yOffset = margin + (maxHeight - printHeight) / 2;
       
       pdf.addImage(imgData, 'PNG', xOffset, yOffset, printWidth, printHeight);
       await savePDF(pdf, `${isSuratJalan ? 'SURAT_JALAN' : 'NOTA'}-${order.invoiceNumber}.pdf`);
@@ -160,6 +179,87 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
       if (onNotify) onNotify("Gagal download PDF", "error");
     }
   }, [captureInvoice, onNotify, order.invoiceNumber, isSuratJalan]);
+
+  const handlePrint = useCallback(() => {
+    if (!invoiceRef.current) return;
+    
+    if (onNotify) onNotify("Menyiapkan pencetakan...", "info");
+
+    // Buat iframe tersembunyi
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) return;
+    
+    // Ambil semua stylesheet aktif dari dokumen induk agar styling Tailwind terbawa dengan sempurna
+    let stylesHtml = '';
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        const rules = Array.from(sheet.cssRules || sheet.rules);
+        stylesHtml += rules.map(rule => rule.cssText).join('\n');
+      } catch (e) {
+        // Abaikan error cross-origin jika ada
+      }
+    }
+    
+    iframeDoc.open();
+    iframeDoc.write(`
+      <html>
+        <head>
+          <title>${isSuratJalan ? 'SURAT JALAN' : 'NOTA'} - ${order.invoiceNumber}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700;800&display=swap');
+            
+            ${stylesHtml}
+            
+            body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background-color: #ffffff !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            
+            .print-container {
+              width: ${isSuratJalan ? '210mm' : '148mm'} !important;
+              min-height: ${isSuratJalan ? '148mm' : '210mm'} !important;
+              padding: 10mm !important;
+              box-sizing: border-box !important;
+              margin: 0 auto !important;
+              background-color: #ffffff !important;
+            }
+            
+            @page {
+              size: ${isSuratJalan ? 'A5 landscape' : 'A5 portrait'};
+              margin: 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-container">
+            ${invoiceRef.current.innerHTML}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.focus();
+                window.print();
+                setTimeout(function() {
+                  window.parent.document.body.removeChild(window.frameElement);
+                }, 1000);
+              }, 400);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    iframeDoc.close();
+  }, [isSuratJalan, order.invoiceNumber, onNotify]);
 
   useEffect(() => {
     if (autoDownload && !downloadTriggered && invoiceRef.current) {
@@ -249,7 +349,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                 </div>
             </div>
             <div className="flex gap-2">
-                <button onClick={() => window.print()} title="Cetak Surat Jalan / Nota" className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all flex items-center gap-2 font-black text-[10px] uppercase tracking-wider"><Printer size={16} /> Cetak (A5)</button>
+                <button onClick={handlePrint} title="Cetak Surat Jalan / Nota" className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all flex items-center gap-2 font-black text-[10px] uppercase tracking-wider"><Printer size={16} /> Cetak (A5)</button>
                 <button onClick={handleDownloadJPG} title="Download Gambar" className="p-3 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 active:scale-95 transition-all"><ImageIcon size={18} /></button>
                 <button onClick={handleDownloadPDF} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-black text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"><FileText size={16} /> DOWNLOAD PDF</button>
             </div>
@@ -400,7 +500,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                 </div>
 
                 {/* Note if exists */}
-                {sjMeta.remarks && (
+                {sjMeta.remarks && sjMeta.remarks.trim() !== '' && (
                   <div className="mt-8 pt-4 border-t border-dashed border-slate-300">
                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
                        Keterangan Pengiriman
@@ -505,13 +605,28 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                    </div>
                 </div>
 
-                {/* Note if exists */}
-                {order.notes && !order.notes.startsWith('{') && (
-                  <div className="mt-12 pt-6 border-t border-slate-100">
-                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                       Catatan Pesanan
+
+                {/* Indonesian Signature Block (Penerima & Hormat Kami) */}
+                <div className="grid grid-cols-2 gap-4 text-center text-[10px] font-bold text-slate-800 pt-8 mt-6">
+                  <div className="space-y-16">
+                     <p className="uppercase tracking-[0.05em] text-slate-500">Penerima,</p>
+                     <p className="font-bold text-slate-400">( ................................................... )</p>
+                  </div>
+                  <div className="space-y-16">
+                     <p className="uppercase tracking-[0.05em] text-slate-500">Hormat Kami,</p>
+                     <p className="font-extrabold text-slate-900 uppercase">
+                       ( {sjMeta.senderName || '...................................................'} )
                      </p>
-                     <p className="text-[10px] font-bold text-slate-600 italic max-w-lg leading-relaxed">"{order.notes}"</p>
+                  </div>
+                </div>
+
+                {/* Note if exists */}
+                {sjMeta.remarks && sjMeta.remarks.trim() !== '' && (
+                  <div className="mt-12 pt-6 border-t border-slate-100 w-full text-left">
+                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                       Keterangan Pengiriman
+                     </p>
+                     <p className="text-[10px] font-bold text-slate-600 italic max-w-lg leading-relaxed">"{sjMeta.remarks}"</p>
                   </div>
                 )}
               </div>
