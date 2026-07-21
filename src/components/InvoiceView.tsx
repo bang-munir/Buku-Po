@@ -55,17 +55,32 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
   const captureInvoice = useCallback(async () => {
     if (!invoiceRef.current) return null;
     
-    // Clone element untuk ditaruh di body (menghindari overflow parent clipping)
+    // Simpan posisi scroll asal dan styling agar bisa dikembalikan persis
+    const originalScrollY = window.scrollY;
+    const originalScrollX = window.scrollX;
+    
+    const originalBodyWidth = document.body.style.width;
+    const originalBodyHeight = document.body.style.height;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalBodyPosition = document.body.style.position;
+    
+    const originalHtmlWidth = document.documentElement.style.width;
+    const originalHtmlHeight = document.documentElement.style.height;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+
+    // Scroll ke paling atas kiri sebelum memproses agar rendering koordinat 0,0 pas pada WebKit mobile
+    window.scrollTo(0, 0);
+
     const originalEl = invoiceRef.current;
     const clone = originalEl.cloneNode(true) as HTMLDivElement;
     
-    const targetWidth = isSuratJalan ? '780px' : '580px';
     const targetWidthVal = isSuratJalan ? 780 : 580;
+    const targetWidth = `${targetWidthVal}px`;
     
-    // Atur gaya clone agar ter-layout utuh tanpa scrollbar atau pembatasan tinggi
-    // Menggunakan position: absolute agar tingginya tidak dibatasi oleh viewport browser
+    // Atur gaya clone agar ter-layout utuh dengan lebar target yang kaku (tidak mengecil karena mobile viewport)
     clone.style.width = targetWidth;
     clone.style.maxWidth = 'none';
+    clone.style.minWidth = targetWidth;
     clone.style.height = 'auto';
     clone.style.maxHeight = 'none';
     clone.style.borderRadius = '0px';
@@ -75,21 +90,33 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
     clone.style.position = 'absolute';
     clone.style.left = '0px';
     clone.style.top = '0px';
-    clone.style.zIndex = '-9999';
+    clone.style.zIndex = '99999'; // Tampilkan di paling depan selama capture agar bisa di-render WebKit
     clone.style.pointerEvents = 'none';
     clone.style.visibility = 'visible';
+    clone.style.padding = '40px'; // Pastikan padding konsisten 40px (seperti desktop/p-10) agar tidak terpotong margin bawahnya
+    clone.style.boxSizing = 'border-box';
     
     document.body.appendChild(clone);
     
-    // Beri jeda kecil agar browser merender elemen dengan benar sebelum di-capture
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Beri waktu browser untuk me-layout ulang kloningan
+    await new Promise(resolve => setTimeout(resolve, 350));
     
-    // Ukur tinggi asli elemen tanpa dibatasi oleh viewport
+    // Hitung tinggi asli yang dibutuhkan oleh kloningan
     const heightVal = Math.max(clone.scrollHeight, clone.offsetHeight, 450);
     
+    // Secara paksa perluas dimensi body & html agar WebKit tidak melakukan clipping visual
+    document.documentElement.style.width = `${targetWidthVal}px`;
+    document.documentElement.style.height = `${heightVal + 100}px`;
+    document.documentElement.style.overflow = 'visible';
+    
+    document.body.style.width = `${targetWidthVal}px`;
+    document.body.style.height = `${heightVal + 100}px`;
+    document.body.style.overflow = 'visible';
+    document.body.style.position = 'relative';
+
     try {
       const canvas = await html2canvas(clone, { 
-        scale: 3, 
+        scale: 3, // Skala resolusi tinggi
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
@@ -103,13 +130,40 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
         y: 0,
       });
       
+      // Hapus kloningan dari body
       document.body.removeChild(clone);
+      
+      // Kembalikan style original html & body
+      document.documentElement.style.width = originalHtmlWidth;
+      document.documentElement.style.height = originalHtmlHeight;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      
+      document.body.style.width = originalBodyWidth;
+      document.body.style.height = originalBodyHeight;
+      document.body.style.overflow = originalBodyOverflow;
+      document.body.style.position = originalBodyPosition;
+      
+      // Kembalikan posisi scroll pengguna
+      window.scrollTo(originalScrollX, originalScrollY);
+      
       return canvas;
-    } catch (e) {
-      console.error("Capture Error:", e);
+    } catch (err) {
+      console.error("Capture Error:", err);
       if (document.body.contains(clone)) {
         document.body.removeChild(clone);
       }
+      
+      // Kembalikan style jika error terjadi
+      document.documentElement.style.width = originalHtmlWidth;
+      document.documentElement.style.height = originalHtmlHeight;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      
+      document.body.style.width = originalBodyWidth;
+      document.body.style.height = originalBodyHeight;
+      document.body.style.overflow = originalBodyOverflow;
+      document.body.style.position = originalBodyPosition;
+      
+      window.scrollTo(originalScrollX, originalScrollY);
       return null;
     }
   }, [isSuratJalan]);
