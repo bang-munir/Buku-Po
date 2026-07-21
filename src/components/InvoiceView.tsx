@@ -60,7 +60,10 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
     const originalScrollY = window.scrollY;
     
     // Siapkan element untuk capture agar rapi dan lebar konsisten
-    invoiceRef.current.style.width = '580px'; 
+    const targetWidth = isSuratJalan ? '780px' : '580px';
+    const targetWidthVal = isSuratJalan ? 780 : 580;
+
+    invoiceRef.current.style.width = targetWidth; 
     invoiceRef.current.style.maxWidth = 'none';
     invoiceRef.current.style.borderRadius = '0px';
     invoiceRef.current.style.border = 'none';
@@ -75,8 +78,14 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        width: 580,
-        windowWidth: 580,
+        width: targetWidthVal,
+        windowWidth: targetWidthVal,
+        height: invoiceRef.current.scrollHeight,
+        windowHeight: invoiceRef.current.scrollHeight,
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
       });
       
       // Kembalikan gaya asli
@@ -89,7 +98,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
       window.scrollTo(0, originalScrollY);
       return null;
     }
-  }, []);
+  }, [isSuratJalan]);
 
   const handleDownloadJPG = useCallback(async () => {
     try {
@@ -120,15 +129,29 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
-        orientation: 'p',
+        orientation: isSuratJalan ? 'l' : 'p',
         unit: 'mm',
         format: 'a5'
       });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      // Hitung dimensi agar tetap mempertahankan aspek rasio gambar
+      let printWidth = pageWidth;
+      let printHeight = (canvas.height * pageWidth) / canvas.width;
+      
+      // Jika tinggi gambar melebihi batas tinggi halaman PDF, sesuaikan skalanya
+      if (printHeight > pageHeight) {
+        printHeight = pageHeight;
+        printWidth = (canvas.width * pageHeight) / canvas.height;
+      }
+      
+      // Posisikan di tengah halaman
+      const xOffset = (pageWidth - printWidth) / 2;
+      const yOffset = (pageHeight - printHeight) / 2;
+      
+      pdf.addImage(imgData, 'PNG', xOffset, yOffset, printWidth, printHeight);
       await savePDF(pdf, `${isSuratJalan ? 'SURAT_JALAN' : 'NOTA'}-${order.invoiceNumber}.pdf`);
 
       if (onNotify) onNotify(`${isSuratJalan ? 'Surat jalan' : 'PDF nota'} berhasil diunduh`, "success");
@@ -153,6 +176,35 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
         {/* Style block for A5 printing and print hidden styles */}
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
+            /* Reset html & body constraints */
+            html, body {
+              height: auto !important;
+              overflow: visible !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background-color: #ffffff !important;
+            }
+            
+            /* Override layout and scroll constraints on all parent containers */
+            #root, main, .flex-1, [class*="overflow-y-auto"], [class*="overflow-hidden"], [class*="max-w-"] {
+              height: auto !important;
+              overflow: visible !important;
+              min-height: 0 !important;
+              max-height: none !important;
+              position: static !important;
+              transform: none !important;
+              filter: none !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              border: none !important;
+              box-shadow: none !important;
+            }
+            
+            /* Hide interface elements like sidebar, navbar, and headers */
+            aside, header, button, nav, .sticky, .no-print {
+              display: none !important;
+            }
+
             body * {
               visibility: hidden;
             }
@@ -163,16 +215,17 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
               position: absolute !important;
               left: 0 !important;
               top: 0 !important;
-              width: 148mm !important;
-              min-height: 210mm !important;
-              padding: 8mm !important;
+              width: ${isSuratJalan ? '210mm' : '148mm'} !important;
+              min-height: ${isSuratJalan ? '148mm' : '210mm'} !important;
+              padding: 10mm !important;
               margin: 0 !important;
               border: none !important;
               box-shadow: none !important;
               background-color: #ffffff !important;
+              box-sizing: border-box !important;
             }
             @page {
-              size: A5 portrait;
+              size: ${isSuratJalan ? 'A5 landscape' : 'A5 portrait'};
               margin: 0;
             }
           }
@@ -203,7 +256,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
         </div>
  
         <div className="overflow-x-auto no-scrollbar py-2 -mx-4 px-4 md:mx-0 md:px-0">
-          <div ref={invoiceRef} className="bg-white p-6 md:p-10 text-slate-900 shadow-sm mx-auto border border-slate-100 print-area-target" style={{ width: '100%', maxWidth: '580px', borderRadius: '0px' }}>
+          <div ref={invoiceRef} className="bg-white p-6 md:p-10 text-slate-900 shadow-sm mx-auto border border-slate-100 print-area-target" style={{ width: '100%', maxWidth: isSuratJalan ? '780px' : '580px', borderRadius: '0px' }}>
             {isSuratJalan ? (
               /* ================= PHYSICAL SURAT JALAN BOOK STYLE ================= */
               <div className="font-sans text-slate-900 space-y-6">
@@ -340,7 +393,9 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                   </div>
                   <div className="space-y-16">
                     <p className="uppercase tracking-[0.05em] text-slate-500">Hormat Kami,</p>
-                    <p className="font-bold text-slate-400">( ................................................... )</p>
+                    <p className="font-extrabold text-slate-900 uppercase">
+                      ( {sjMeta.senderName || '...................................................'} )
+                    </p>
                   </div>
                 </div>
 
