@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+bukupo_supabase_backup_2026-09-19.dump
+.vercel
