@@ -21,7 +21,7 @@ import PaymentManager from '@/components/PaymentManager';
 import Settings from '@/components/Settings';
 import Login from '@/components/Login';
 import { dbService } from '@/services/dbService';
-import { supabase, checkSupabaseConnection } from '@/lib/supabase';
+// Supabase kept for auth only (Login, Settings). Buku-Po CRUD goes through Neon API.
 
 const APP_LOGO_SVG = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiI+CiAgPHJlY3QgeD0iNTAiIHk9IjcwIiB3aWR0aD0iNDEyIiBoZWlnaHQ9IjQxMiIgcng9IjQwIiBmaWxsPSIjZDkwMDAwIiAvPgogIDxwYXRoIGQ9Ik0xMDAgMTEwIEg0MTIgVjQwMCBMMzgyIDQzMCBIMTAwIFoiIGZpbGw9IndoaXRlIiAvPgogIDx0ZXh0IHg9IjI0NSIgeT0iMjY1IiBmb250LWZhbWlseT0iQXJpYWwgQmxhY2siIGZvbnQtd2VpZ2h0PSI5MDAiIGZvbnQtc2l6ZT0iMTE1IiBmaWxsPSIjZDkwMDAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5QTzwvdGV4dD4KICA8cmVjdCB4PSIxODAiIHk9IjMwIiB3aWR0aD0iMTUyIiBoZWlnaHQ9IjcwIiByeD0iMTUiIGZpbGw9IiM5OTk5OTkiIC8+Cjwvc3ZnPg==";
 
@@ -184,19 +184,14 @@ const App: React.FC = () => {
     else setIsRefreshing(true);
 
     try {
-      const connection = await checkSupabaseConnection();
-      if (connection.connected) {
-        const [customers, products, categories, orders, deposits] = await Promise.all([
-          dbService.getCustomers(),
-          dbService.getProducts(),
-          dbService.getCategories(),
-          dbService.getOrders(),
-          dbService.getDeposits()
-        ]);
-        setState(prev => ({ ...prev, customers, products, categories, orders, deposits }));
-      } else {
-        showNotify(connection.message, "error");
-      }
+      const [customers, products, categories, orders, deposits] = await Promise.all([
+        dbService.getCustomers(),
+        dbService.getProducts(),
+        dbService.getCategories(),
+        dbService.getOrders(),
+        dbService.getDeposits()
+      ]);
+      setState(prev => ({ ...prev, customers, products, categories, orders, deposits }));
     } catch (e: any) {
       console.error("Sync Error:", e);
       showNotify(`Gagal sinkron: ${e.message || 'Cek koneksi internet'}`, "error");

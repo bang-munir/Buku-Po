@@ -1,147 +1,118 @@
-import { supabase } from '@/lib/supabase';
 import { Customer, Product, Order, CustomerDeposit, Category } from '@/types';
 
 export const dbService = {
   // --- CUSTOMERS ---
   async getCustomers(): Promise<Customer[]> {
-    const { data, error } = await supabase
-      .from('customers')
-      .select('*')
-      .order('name');
-    
-    if (error) throw error;
+    const res = await fetch('/api/customers');
+    if (!res.ok) throw new Error('Gagal memuat data pelanggan');
+    const data = await res.json();
     return data || [];
   },
 
   async upsertCustomer(customer: Customer) {
-    const { error } = await supabase
-      .from('customers')
-      .upsert({
+    const res = await fetch('/api/customers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         id: customer.id || gen_uuid(),
         name: customer.name,
         address: customer.address || '',
         email: customer.email || '',
         type: customer.type || 'Jakarta'
-      });
-    
-    if (error) {
-      console.error('Error saving customer:', error);
-      throw new Error(this.formatErrorMessage(error, 'simpan customer'));
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal simpan customer');
     }
   },
 
   async deleteCustomer(id: string) {
-    const { error } = await supabase
-      .from('customers')
-      .delete()
-      .eq('id', id);
-    
-    if (error) throw error;
+    const res = await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal hapus customer');
+    }
   },
 
   // --- CATEGORIES ---
   async getCategories(): Promise<Category[]> {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name');
-    
-    if (error) throw error;
+    const res = await fetch('/api/categories');
+    if (!res.ok) throw new Error('Gagal memuat data kategori');
+    const data = await res.json();
     return data || [];
   },
 
   async upsertCategory(category: Category) {
-    const categoryId = category.id || gen_uuid();
-    const { error } = await supabase
-      .from('categories')
-      .upsert({
-        id: categoryId,
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: category.id || gen_uuid(),
         name: category.name
-      });
-    
-    if (error) {
-      console.error('Error saving category:', error);
-      throw new Error(this.formatErrorMessage(error, 'simpan kategori'));
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal simpan kategori');
     }
   },
 
   async deleteCategory(id: string) {
-    const { error } = await supabase
-      .from('categories')
-      .delete()
-      .eq('id', id);
-    
-    if (error) {
-      console.error('Error deleting category:', error);
-      throw error;
+    const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal hapus kategori');
     }
   },
 
   // --- DEPOSITS ---
   async getDeposits(): Promise<CustomerDeposit[]> {
-    const { data, error } = await supabase
-      .from('deposits')
-      .select('*')
-      .order('date', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching deposits:', error);
-      throw error;
-    }
-    
-    return (data || []).map(d => ({
+    const res = await fetch('/api/deposits');
+    if (!res.ok) throw new Error('Gagal memuat data deposit');
+    const data = await res.json();
+    return (data || []).map((d: any) => ({
       ...d,
-      customerId: d.customer_id,
-      customerName: d.customer_name,
-      usedAmount: d.used_amount
+      customerId: d.customerId,
+      customerName: d.customerName,
+      usedAmount: d.usedAmount
     }));
   },
 
   async upsertDeposit(deposit: CustomerDeposit) {
-    const depositId = deposit.id || gen_uuid();
-    const { error } = await supabase
-      .from('deposits')
-      .upsert({
-        id: depositId,
+    const res = await fetch('/api/deposits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: deposit.id || gen_uuid(),
         customer_id: deposit.customerId,
         customer_name: deposit.customerName,
         amount: Number(deposit.amount) || 0,
         used_amount: Number(deposit.usedAmount) || 0,
         date: deposit.date || new Date().toISOString(),
         notes: deposit.notes || ''
-      });
-    
-    if (error) {
-      console.error('Error saving deposit:', error);
-      throw new Error(this.formatErrorMessage(error, 'simpan deposit'));
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal simpan deposit');
     }
   },
 
   async deleteDeposit(id: string) {
-    const { error } = await supabase
-      .from('deposits')
-      .delete()
-      .eq('id', id);
-    
-    if (error) {
-      console.error('Error deleting deposit:', error);
-      throw error;
+    const res = await fetch(`/api/deposits/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal hapus deposit');
     }
   },
 
   // --- PRODUCTS ---
   async getProducts(): Promise<Product[]> {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('name');
-    
-    if (error) {
-      console.error('Error fetching products:', error);
-      throw error;
-    }
-    
-    return (data || []).map(p => ({
+    const res = await fetch('/api/products');
+    if (!res.ok) throw new Error('Gagal memuat data produk');
+    const data = await res.json();
+    return (data || []).map((p: any) => ({
       ...p,
       categoryId: p.category_id,
       costPrice: p.cost_price,
@@ -151,52 +122,40 @@ export const dbService = {
   },
 
   async upsertProduct(product: Product) {
-    const productId = product.id || gen_uuid();
-    const payload = {
-      id: productId,
-      name: product.name,
-      description: product.description || '',
-      category_id: (product.categoryId && product.categoryId.trim() !== '') ? product.categoryId : null,
-      cost_price: Number(product.costPrice) || 0,
-      price_jakarta: Number(product.priceJakarta) || 0,
-      price_luar_kota: Number(product.priceLuarKota) || 0
-    };
-
-    const { error } = await supabase
-      .from('products')
-      .upsert(payload);
-    
-    if (error) {
-      console.error('Error saving product:', error);
-      throw new Error(this.formatErrorMessage(error, 'simpan produk'));
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: product.id || gen_uuid(),
+        name: product.name,
+        description: product.description || '',
+        category_id: (product.categoryId && product.categoryId.trim() !== '') ? product.categoryId : null,
+        cost_price: Number(product.costPrice) || 0,
+        price_jakarta: Number(product.priceJakarta) || 0,
+        price_luar_kota: Number(product.priceLuarKota) || 0
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal simpan produk');
     }
   },
 
   async deleteProduct(id: string) {
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', id);
-    
-    if (error) {
-      console.error('Error deleting product:', error);
-      throw error;
+    const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal hapus produk');
     }
   },
 
   // --- ORDERS ---
   async getOrders(): Promise<Order[]> {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*, order_items(*), payments(*)')
-      .order('order_date', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching orders:', error);
-      throw error;
-    }
-    
-    return (data || []).map(o => ({
+    const res = await fetch('/api/orders/all');
+    if (!res.ok) throw new Error('Gagal memuat data PO');
+    const data = await res.json();
+
+    return (data || []).map((o: any) => ({
       id: o.id,
       invoiceNumber: o.invoice_number,
       customerId: o.customer_id,
@@ -210,7 +169,7 @@ export const dbService = {
       depositUsed: o.deposit_used,
       total: o.total,
       notes: o.notes,
-      items: (o.order_items || []).map((i: any) => ({
+      items: (o.items || []).map((i: any) => ({
         id: i.id,
         productId: i.product_id,
         name: i.name,
@@ -234,8 +193,7 @@ export const dbService = {
       const orderId = order.id || gen_uuid();
       console.log('Menyimpan pesanan:', order.invoiceNumber, 'ID:', orderId);
 
-      // 1. Bersihkan data Header Order
-      const orderPayload = {
+      const payload = {
         id: orderId,
         invoice_number: order.invoiceNumber,
         customer_id: order.customerId,
@@ -248,29 +206,9 @@ export const dbService = {
         down_payment: Number(order.downPayment) || 0,
         deposit_used: Number(order.depositUsed) || 0,
         total: Number(order.total) || 0,
-        notes: order.notes || ''
-      };
-
-      const { error: orderError } = await supabase
-        .from('orders')
-        .upsert(orderPayload);
-      
-      if (orderError) {
-        throw new Error(this.formatErrorMessage(orderError, 'simpan header nota'));
-      }
-
-      // 2. Refresh Order Items (Hapus yang lama, masukkan yang baru)
-      const { error: deleteItemsError } = await supabase
-        .from('order_items')
-        .delete()
-        .eq('order_id', orderId);
-      
-      if (deleteItemsError) console.warn('Peringatan: Gagal hapus item lama:', deleteItemsError);
-
-      if (order.items && order.items.length > 0) {
-        const itemsToSave = order.items.map(i => ({
-          id: i.id && i.id.length > 10 ? i.id : gen_uuid(), 
-          order_id: orderId,
+        notes: order.notes || '',
+        items: (order.items || []).map(i => ({
+          id: i.id && i.id.length > 10 ? i.id : gen_uuid(),
           product_id: i.productId,
           name: i.name,
           quantity: Number(i.quantity) || 0,
@@ -278,44 +216,27 @@ export const dbService = {
           shipped_quantity: Number(i.shippedQuantity) || 0,
           unit_price: Number(i.unitPrice) || 0,
           cost_price: Number(i.costPrice) || 0
-        }));
-
-        const { error: itemsError } = await supabase
-          .from('order_items')
-          .insert(itemsToSave);
-        
-        if (itemsError) {
-          throw new Error(this.formatErrorMessage(itemsError, 'simpan item pesanan'));
-        }
-      }
-
-      // 3. Refresh Payments (Hapus yang lama, masukkan yang baru)
-      const { error: deletePaymentsError } = await supabase
-        .from('payments')
-        .delete()
-        .eq('order_id', orderId);
-      
-      if (deletePaymentsError) console.warn('Peringatan: Gagal hapus pembayaran lama:', deletePaymentsError);
-
-      if (order.payments && order.payments.length > 0) {
-        const paymentsToSave = order.payments.map(p => ({
+        })),
+        payments: (order.payments || []).map(p => ({
           id: p.id && p.id.length > 10 ? p.id : gen_uuid(),
-          order_id: orderId,
           amount: Number(p.amount) || 0,
           date: p.date || new Date().toISOString(),
           note: p.note || ''
-        }));
+        }))
+      };
 
-        const { error: paymentsError } = await supabase
-          .from('payments')
-          .insert(paymentsToSave);
-        
-        if (paymentsError) {
-          throw new Error(this.formatErrorMessage(paymentsError, 'simpan pembayaran'));
-        }
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Gagal simpan order');
       }
 
-      console.log('BERHASIL SIMPAN KE SUPABASE:', order.invoiceNumber);
+      console.log('BERHASIL SIMPAN:', order.invoiceNumber);
       return true;
     } catch (error: any) {
       console.error('FATAL SAVE ERROR:', error);
@@ -324,25 +245,15 @@ export const dbService = {
   },
 
   async deleteOrder(id: string) {
-    const { error } = await supabase
-      .from('orders')
-      .delete()
-      .eq('id', id);
-    
-    if (error) {
-      console.error('Error deleting order:', error);
-      throw error;
+    const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal hapus order');
     }
   },
 
   formatErrorMessage(error: any, action: string): string {
     const msg = error.message || '';
-    if (msg.includes('row-level security') || error.code === '42501') {
-      return `Gagal ${action}: Akses Ditolak (RLS). Silakan jalankan perintah DISABLE RLS di SQL Editor Supabase untuk semua tabel.`;
-    }
-    if (error.code === '23505') {
-       return `Gagal ${action}: Data sudah ada (Unique Constraint).`;
-    }
     return `Gagal ${action}: ${msg}`;
   }
 };
@@ -360,4 +271,3 @@ function gen_uuid() {
     return v.toString(16);
   });
 }
-
