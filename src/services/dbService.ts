@@ -75,7 +75,8 @@ export const dbService = {
       ...d,
       customerId: d.customerId,
       customerName: d.customerName,
-      usedAmount: d.usedAmount
+      amount: Number(d.amount) || 0,
+      usedAmount: Number(d.usedAmount) || 0
     }));
   },
 
@@ -115,9 +116,9 @@ export const dbService = {
     return (data || []).map((p: any) => ({
       ...p,
       categoryId: p.category_id,
-      costPrice: p.cost_price,
-      priceJakarta: p.price_jakarta,
-      priceLuarKota: p.price_luar_kota
+      costPrice: Number(p.cost_price) || 0,
+      priceJakarta: Number(p.price_jakarta) || 0,
+      priceLuarKota: Number(p.price_luar_kota) || 0
     }));
   },
 
@@ -164,24 +165,24 @@ export const dbService = {
       customerAddress: o.customer_address,
       orderDate: o.order_date,
       status: o.status,
-      subtotal: o.subtotal,
-      downPayment: o.down_payment,
-      depositUsed: o.deposit_used,
-      total: o.total,
+      subtotal: Number(o.subtotal) || 0,
+      downPayment: Number(o.down_payment) || 0,
+      depositUsed: Number(o.deposit_used) || 0,
+      total: Number(o.total) || 0,
       notes: o.notes,
       items: (o.items || []).map((i: any) => ({
         id: i.id,
         productId: i.product_id,
         name: i.name,
-        quantity: i.quantity,
-        processingQuantity: i.processing_quantity,
-        shippedQuantity: i.shipped_quantity,
-        unitPrice: i.unit_price,
-        costPrice: i.cost_price
+        quantity: Number(i.quantity) || 0,
+        processingQuantity: Number(i.processing_quantity) || 0,
+        shippedQuantity: Number(i.shipped_quantity) || 0,
+        unitPrice: Number(i.unit_price) || 0,
+        costPrice: Number(i.cost_price) || 0
       })),
       payments: (o.payments || []).map((p: any) => ({
         id: p.id,
-        amount: p.amount,
+        amount: Number(p.amount) || 0,
         date: p.date,
         note: p.note
       }))
