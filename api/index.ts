@@ -6,6 +6,7 @@ import { categoriesRouter } from './routes/categories';
 import { productsRouter } from './routes/products';
 import { depositsRouter } from './routes/deposits';
 import { paymentsRouter } from './routes/payments';
+import { authRouter } from './routes/auth';
 
 export const config = { runtime: 'edge' };
 
@@ -21,5 +22,6 @@ app.route('/categories', categoriesRouter);
 app.route('/products', productsRouter);
 app.route('/deposits', depositsRouter);
 app.route('/payments', paymentsRouter);
+app.route('/auth', authRouter);
 
 export default handle(app);

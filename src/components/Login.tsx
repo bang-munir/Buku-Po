@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Loader2, Lock, User, ChevronRight, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -22,66 +21,29 @@ const Login: React.FC<Props> = ({ onLogin }) => {
       const cleanUsername = username.trim();
       const cleanPassword = password.trim();
 
-      // 1. Coba login langsung
-      const { data: userData, error: fetchError } = await supabase
-        .from('app_users')
-        .select('*')
-        .eq('username', cleanUsername)
-        .eq('password', cleanPassword)
-        .maybeSingle();
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: cleanUsername, password: cleanPassword }),
+      });
 
-      if (fetchError) {
-        console.error('DB Error:', fetchError);
-        throw new Error('Koneksi ke database bermasalah.');
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
       }
 
-      if (userData) {
-        localStorage.setItem('app_session', JSON.stringify(userData));
-        onLogin();
-        return;
+      if (!res.ok) {
+        throw new Error(data?.error || 'Gagal login. Silakan coba lagi.');
       }
 
-      // 2. Jika gagal login, cek apakah tabel kosong
-      const { count, error: countError } = await supabase
-        .from('app_users')
-        .select('*', { count: 'exact', head: true });
-
-      if (countError) {
-        throw new Error('Gagal mengecek data user. Pastikan tabel app_users sudah dibuat.');
+      if (!data) {
+        throw new Error('Gagal login. Silakan coba lagi.');
       }
 
-      if (count === 0) {
-        // Tabel kosong! Coba buat admin default
-        const { error: insError } = await supabase
-          .from('app_users')
-          .insert([{ username: 'admin', password: '1', full_name: 'Administrator' }]);
-        
-        if (insError) {
-          if (insError.message.includes('row-level security')) {
-            throw new Error('RLS Supabase Aktif! Silakan jalankan "ALTER TABLE app_users DISABLE ROW LEVEL SECURITY;" di SQL Editor Supabase.');
-          }
-          throw new Error(`Gagal membuat user: ${insError.message}`);
-        }
-
-        // Coba login lagi jika yang diinput adalah admin/1
-        if (cleanUsername === 'admin' && cleanPassword === '1') {
-          const { data: retryData } = await supabase
-            .from('app_users')
-            .select('*')
-            .eq('username', 'admin')
-            .eq('password', '1')
-            .maybeSingle();
-          
-          if (retryData) {
-            localStorage.setItem('app_session', JSON.stringify(retryData));
-            onLogin();
-            return;
-          }
-        }
-        throw new Error('User admin ("admin"/"1") telah dibuat. Silakan login ulang.');
-      }
-
-      throw new Error('Username atau Password yang Anda masukkan salah!');
+      localStorage.setItem('app_session', JSON.stringify(data));
+      onLogin();
     } catch (err: any) {
       setError(err.message);
     } finally {
