@@ -6,11 +6,11 @@ export const depositsRouter = new Hono();
 depositsRouter.get('/', async (c) => {
   try {
     const sql = neonQuery();
-    const deposits = await sql`
+    const deposits = (await sql`
       SELECT id, customer_id, customer_name, amount, used_amount, date, notes
       FROM bukupo.deposits
       ORDER BY date DESC
-    `;
+    `) as Record<string, any>[];
     const mapped = deposits.map((d: any) => ({
       id: d.id,
       customerId: d.customer_id,

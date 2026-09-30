@@ -6,21 +6,21 @@ export const ordersRouter = new Hono();
 ordersRouter.get('/all', async (c) => {
   try {
     const sql = neonQuery();
-    const orders = await sql`
+    const orders = (await sql`
       SELECT id, invoice_number, customer_id, customer_name, customer_type, customer_address,
              order_date, status, subtotal, down_payment, deposit_used, total, notes, created_at
       FROM bukupo.orders
       ORDER BY order_date DESC, created_at DESC
-    `;
-    const allItems = await sql`
+    `) as Record<string, any>[];
+    const allItems = (await sql`
       SELECT id, order_id, product_id, name, quantity, processing_quantity,
              shipped_quantity, unit_price, cost_price
       FROM bukupo.order_items
-    `;
-    const allPayments = await sql`
+    `) as Record<string, any>[];
+    const allPayments = (await sql`
       SELECT id, order_id, amount, date, note
       FROM bukupo.payments
-    `;
+    `) as Record<string, any>[];
     const itemsByOrder = new Map<string, any[]>();
     for (const i of allItems) {
       const oid = i.order_id;
@@ -65,13 +65,13 @@ ordersRouter.get('/:id', async (c) => {
   const id = c.req.param('id');
   try {
     const sql = neonQuery();
-    const orderRows = await sql`
+    const orderRows = (await sql`
       SELECT id, invoice_number, customer_id, customer_name, customer_type, customer_address,
              order_date, status, subtotal, down_payment, deposit_used, total, notes, created_at
       FROM bukupo.orders
       WHERE id = ${id}
       LIMIT 1
-    `;
+    `) as Record<string, any>[];
     if (orderRows.length === 0) {
       return c.json({ error: 'PO tidak ditemukan' }, 404);
     }
