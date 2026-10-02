@@ -1,6 +1,35 @@
 import { jsPDF } from 'jspdf';
 
 /**
+ * Convert an existing jsPDF document into a File object.
+ * Uses the same document instance passed to savePDF, so the shared file is
+ * byte-identical to what DOWNLOAD PDF produces.
+ */
+export const pdfToFile = (doc: jsPDF, fileName: string): File => {
+  const blob = doc.output('blob');
+  return new File([blob], fileName, { type: 'application/pdf' });
+};
+
+/**
+ * Save a File to the device without invoking any share UI.
+ * Used as the fallback path when Web Share is unavailable or fails.
+ */
+export const downloadPDFFile = (file: File): void => {
+  const blobURL = URL.createObjectURL(file);
+  const link = document.createElement('a');
+  link.href = blobURL;
+  link.download = file.name;
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  setTimeout(() => {
+    URL.revokeObjectURL(blobURL);
+  }, 60000);
+};
+
+/**
  * Utility to save a jsPDF document with a specific filename.
  * Optimized for desktop and mobile, especially iOS devices (iPhone, iPad, Safari, etc.)
  */

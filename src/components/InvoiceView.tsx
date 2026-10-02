@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Image as ImageIcon, FileText, ArrowLeft, Printer } from 'lucide-react';
+import { Image as ImageIcon, FileText, ArrowLeft, Printer, Share2, MessageCircle, Download, X } from 'lucide-react';
 import { Order, Customer } from '@/types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { savePDF } from '@/lib/pdfUtils';
+import { savePDF, pdfToFile, downloadPDFFile } from '@/lib/pdfUtils';
 
 interface InvoiceViewProps {
   order: Order;
@@ -27,8 +27,11 @@ const parseItemNameAndUnit = (fullName: string) => {
 const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotify, sessionQtys, sessionDP, onBack, autoDownload, customers }) => {
   const invoiceRef = useRef<HTMLDivElement>(null);
   const [downloadTriggered, setDownloadTriggered] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
 
   const isSuratJalan = mode === 'shipping' || order.invoiceNumber.startsWith('SJ-');
+  const pdfFileName = `${isSuratJalan ? 'SURAT_JALAN' : 'PO'}-${order.invoiceNumber}.pdf`;
 
   const customer = customers?.find(c => c.id === order.customerId || c.name.trim().toLowerCase() === order.customerName.trim().toLowerCase());
   const customerPhone = customer?.email || order.customerEmail || '';
@@ -51,6 +54,25 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
   };
 
   const sjMeta = getSjMeta();
+
+  // Catatan PO hanya diambil dari notes berbentuk plain text.
+  // notes yang berisi JSON metadata pengiriman tidak boleh tampil mentah di dokumen PO.
+  const poNotes = (() => {
+    const raw = (order.notes || '').trim();
+    if (!raw) return '';
+    if (raw.startsWith('{')) {
+      try {
+        JSON.parse(raw);
+        return '';
+      } catch {
+        return raw;
+      }
+    }
+    return raw;
+  })();
+
+  const poAddress = (order.customerAddress || customer?.address || '').trim();
+  const poPhone = (customerPhone || '').trim();
 
   const captureInvoice = useCallback(async () => {
     if (!invoiceRef.current) return null;
@@ -177,62 +199,128 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
       const url = canvas.toDataURL('image/jpeg', 0.95);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${isSuratJalan ? 'SURAT-JALAN' : 'NOTA'}-${order.invoiceNumber}.jpg`;
+      link.download = `${isSuratJalan ? 'SURAT-JALAN' : 'PO'}-${order.invoiceNumber}.jpg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      if (onNotify) onNotify(`${isSuratJalan ? 'Surat jalan' : 'Gambar nota'} berhasil diunduh`, "success");
+      if (onNotify) onNotify(`${isSuratJalan ? 'Surat jalan' : 'Gambar PO'} berhasil diunduh`, "success");
     } catch (e) {
       console.error("JPG Download Error:", e);
       if (onNotify) onNotify("Gagal download gambar", "error");
     }
   }, [captureInvoice, onNotify, order.invoiceNumber, isSuratJalan]);
 
+  const buildPDF = useCallback(async (): Promise<jsPDF> => {
+    const canvas = await captureInvoice();
+    if (!canvas) throw new Error('Dokumen tidak dapat ditangkap');
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: isSuratJalan ? 'l' : 'p',
+      unit: 'mm',
+      format: 'a5'
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    // Gunakan margin 10mm untuk tampilan profesional
+    const margin = 10;
+    const maxWidth = pageWidth - (2 * margin);
+    const maxHeight = pageHeight - (2 * margin);
+
+    // Hitung dimensi agar tetap mempertahankan aspek rasio gambar asli
+    let printWidth = maxWidth;
+    let printHeight = (canvas.height * maxWidth) / canvas.width;
+
+    // Jika tinggi gambar melebihi batas maksimal tinggi halaman PDF, perkecil sesuai rasio
+    if (printHeight > maxHeight) {
+      printHeight = maxHeight;
+      printWidth = (canvas.width * maxHeight) / canvas.height;
+    }
+
+    // Posisikan gambar di tengah-tengah halaman (center-aligned secara horizontal & vertikal)
+    const xOffset = margin + (maxWidth - printWidth) / 2;
+    const yOffset = margin + (maxHeight - printHeight) / 2;
+
+    pdf.addImage(imgData, 'PNG', xOffset, yOffset, printWidth, printHeight);
+    return pdf;
+  }, [captureInvoice, isSuratJalan]);
+
   const handleDownloadPDF = useCallback(async () => {
     try {
       if (onNotify) onNotify("Membuat PDF...", "info");
-      const canvas = await captureInvoice();
-      if (!canvas) throw new Error();
+      const pdf = await buildPDF();
+      await savePDF(pdf, pdfFileName);
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: isSuratJalan ? 'l' : 'p',
-        unit: 'mm',
-        format: 'a5'
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      
-      // Gunakan margin 10mm untuk tampilan profesional
-      const margin = 10;
-      const maxWidth = pageWidth - (2 * margin);
-      const maxHeight = pageHeight - (2 * margin);
-      
-      // Hitung dimensi agar tetap mempertahankan aspek rasio gambar asli
-      let printWidth = maxWidth;
-      let printHeight = (canvas.height * maxWidth) / canvas.width;
-      
-      // Jika tinggi gambar melebihi batas maksimal tinggi halaman PDF, perkecil sesuai rasio
-      if (printHeight > maxHeight) {
-        printHeight = maxHeight;
-        printWidth = (canvas.width * maxHeight) / canvas.height;
-      }
-      
-      // Posisikan gambar di tengah-tengah halaman (center-aligned secara horizontal & vertikal)
-      const xOffset = margin + (maxWidth - printWidth) / 2;
-      const yOffset = margin + (maxHeight - printHeight) / 2;
-      
-      pdf.addImage(imgData, 'PNG', xOffset, yOffset, printWidth, printHeight);
-      await savePDF(pdf, `${isSuratJalan ? 'SURAT_JALAN' : 'NOTA'}-${order.invoiceNumber}.pdf`);
-
-      if (onNotify) onNotify(`${isSuratJalan ? 'Surat jalan' : 'PDF nota'} berhasil diunduh`, "success");
+      if (onNotify) onNotify(`${isSuratJalan ? 'Surat jalan' : 'PDF PO'} berhasil diunduh`, "success");
     } catch (e) {
       console.error("PDF Download Error:", e);
       if (onNotify) onNotify("Gagal download PDF", "error");
     }
-  }, [captureInvoice, onNotify, order.invoiceNumber, isSuratJalan]);
+  }, [buildPDF, onNotify, pdfFileName, isSuratJalan]);
+
+  const buildPOFile = useCallback(async (): Promise<File> => {
+    const pdf = await buildPDF();
+    return pdfToFile(pdf, pdfFileName);
+  }, [buildPDF, pdfFileName]);
+
+  const handleSharePOWhatsApp = useCallback(async () => {
+    setIsSharing(true);
+    setIsShareMenuOpen(false);
+    try {
+      if (onNotify) onNotify("Membuat PDF...", "info");
+      const file = await buildPOFile();
+
+      const canShareFiles =
+        typeof navigator !== 'undefined' &&
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [file] });
+
+      if (!canShareFiles) {
+        downloadPDFFile(file);
+        if (onNotify) onNotify("Perangkat tidak mendukung berbagi file, PDF PO diunduh", "info");
+        return;
+      }
+
+      try {
+        await navigator.share({
+          title: `PO - ${order.invoiceNumber}`,
+          text: `PURCHASE ORDER ${order.invoiceNumber}`,
+          files: [file]
+        });
+        if (onNotify) onNotify("Panel berbagi selesai", "success");
+      } catch (shareErr: any) {
+        if (shareErr?.name === 'AbortError') return;
+        console.warn('Web Share gagal, beralih ke unduhan:', shareErr);
+        downloadPDFFile(file);
+        if (onNotify) onNotify("Berbagi gagal, PDF PO diunduh", "warning");
+      }
+    } catch (e) {
+      console.error("Share PO Error:", e);
+      if (onNotify) onNotify("Gagal membuat PDF PO", "error");
+    } finally {
+      setIsSharing(false);
+    }
+  }, [buildPOFile, onNotify, order.invoiceNumber]);
+
+  const handleSharePODownload = useCallback(async () => {
+    setIsSharing(true);
+    setIsShareMenuOpen(false);
+    try {
+      if (onNotify) onNotify("Membuat PDF...", "info");
+      const file = await buildPOFile();
+      downloadPDFFile(file);
+      if (onNotify) onNotify("PDF PO berhasil diunduh", "success");
+    } catch (e) {
+      console.error("Share PO Download Error:", e);
+      if (onNotify) onNotify("Gagal membuat PDF PO", "error");
+    } finally {
+      setIsSharing(false);
+    }
+  }, [buildPOFile, onNotify]);
 
   const handlePrint = useCallback(() => {
     if (!invoiceRef.current) return;
@@ -265,7 +353,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
     iframeDoc.write(`
       <html>
         <head>
-          <title>${isSuratJalan ? 'SURAT JALAN' : 'NOTA'} - ${order.invoiceNumber}</title>
+          <title>${isSuratJalan ? 'SURAT JALAN' : 'PO'} - ${order.invoiceNumber}</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700;800&display=swap');
             
@@ -397,7 +485,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                 )}
                 <div className="flex items-center gap-2">
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                    {isSuratJalan ? 'Pratinjau Surat Jalan' : 'Detail Nota'}
+                    {isSuratJalan ? 'Pratinjau Surat Jalan' : 'Detail PO'}
                   </h3>
                   <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[8px] font-black uppercase tracking-wider">A5</span>
                 </div>
@@ -405,6 +493,16 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
             <div className="flex gap-2">
                 <button onClick={handlePrint} title="Cetak Surat Jalan / Nota" className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all flex items-center gap-2 font-black text-[10px] uppercase tracking-wider"><Printer size={16} /> Cetak (A5)</button>
                 <button onClick={handleDownloadJPG} title="Download Gambar" className="p-3 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 active:scale-95 transition-all"><ImageIcon size={18} /></button>
+                {!isSuratJalan && (
+                  <button
+                    onClick={() => setIsShareMenuOpen(true)}
+                    disabled={isSharing}
+                    title="Bagikan PDF Purchase Order"
+                    className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 text-[10px] font-black uppercase tracking-widest shadow-md active:scale-95 transition-all"
+                  >
+                    <Share2 size={16} /> {isSharing ? 'MEMBUAT PDF...' : 'BAGIKAN PO'}
+                  </button>
+                )}
                 <button onClick={handleDownloadPDF} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-black text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"><FileText size={16} /> DOWNLOAD PDF</button>
             </div>
         </div>
@@ -565,18 +663,18 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
 
               </div>
             ) : (
-              /* ================= STANDARD INVOICE / NOTA STYLE ================= */
+              /* ================= DOKUMEN PURCHASE ORDER ================= */
               <div>
-                {/* Header Nota Based on Image */}
+                {/* Header Purchase Order */}
                 <div className="flex justify-between items-start mb-6">
                    <div>
                       <h1 className="text-4xl font-black tracking-tight text-slate-900 leading-none">
-                        NOTA
+                        PURCHASE ORDER
                       </h1>
                       <p className="text-[11px] font-black tracking-[0.2em] text-slate-400 mt-2 uppercase">{order.invoiceNumber}</p>
                    </div>
                    <div className="text-right">
-                      <p className="text-[10px] font-black tracking-[0.2em] text-slate-300 uppercase mb-1">TANGGAL KIRIM</p>
+                      <p className="text-[10px] font-black tracking-[0.2em] text-slate-300 uppercase mb-1">TANGGAL PO</p>
                       <p className="text-sm font-black text-slate-800">{new Date(order.orderDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                    </div>
                 </div>
@@ -586,7 +684,17 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                 {/* Pelanggan Section */}
                  <div className="mb-10">
                     <p className="text-[10px] font-black tracking-[0.2em] text-indigo-500 uppercase mb-2">KEPADA</p>
-                    <h2 className="text-base font-black text-slate-900 uppercase tracking-tight">{order.customerName}</h2>
+                    <h2 className="text-base font-black text-slate-900 uppercase tracking-tight">{order.customerName || 'Tidak tersedia'}</h2>
+                    {poAddress && (
+                      <p className="text-[11px] font-bold text-slate-600 uppercase tracking-tight leading-relaxed mt-1">
+                        {poAddress}
+                      </p>
+                    )}
+                    {poPhone && (
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                        No. Telp: {poPhone}
+                      </p>
+                    )}
                  </div>
 
                 {/* Table */}
@@ -594,9 +702,9 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                   <thead>
                     <tr className="border-y border-slate-300">
                       <th className="py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-900">Deskripsi Barang</th>
-                      <th className="py-3 text-center text-[10px] font-black uppercase tracking-widest text-slate-900">Harga</th>
+                      <th className="py-3 text-center text-[10px] font-black uppercase tracking-widest text-slate-900">Harga Satuan</th>
                       <th className="py-3 text-center text-[10px] font-black uppercase tracking-widest text-slate-900">Qty</th>
-                      <th className="py-3 text-right text-[10px] font-black uppercase tracking-widest text-slate-900">Total</th>
+                      <th className="py-3 text-right text-[10px] font-black uppercase tracking-widest text-slate-900">Jumlah</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 border-b border-slate-300">
@@ -628,7 +736,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                 <div className="flex flex-col items-end pt-4 space-y-6">
                    <div className="w-[300px] space-y-2">
                       <div className="flex justify-between items-center py-2 text-[10px] font-black uppercase tracking-widest text-slate-300">
-                        <span>Jumlah</span>
+                        <span>Subtotal</span>
                         <span className="text-slate-800 tracking-normal font-black">
                           Rp {(() => {
                             const subTotal = order.items.reduce((sum, i) => sum + (i.quantity * i.unitPrice), 0);
@@ -659,34 +767,77 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
                    </div>
                 </div>
 
-
-                {/* Indonesian Signature Block (Penerima & Hormat Kami) */}
-                <div className="grid grid-cols-2 gap-4 text-center text-[10px] font-bold text-slate-800 pt-8 mt-6">
-                  <div className="space-y-16">
-                     <p className="uppercase tracking-[0.05em] text-slate-500">Penerima,</p>
-                     <p className="font-bold text-slate-400">( ................................................... )</p>
-                  </div>
-                  <div className="space-y-16">
-                     <p className="uppercase tracking-[0.05em] text-slate-500">Hormat Kami,</p>
-                     <p className="font-extrabold text-slate-900 uppercase">
-                       ( {sjMeta.senderName || '...................................................'} )
-                     </p>
-                  </div>
-                </div>
-
-                {/* Note if exists */}
-                {sjMeta.remarks && sjMeta.remarks.trim() !== '' && (
+                {/* Catatan PO (hanya plain text) */}
+                {poNotes && (
                   <div className="mt-12 pt-6 border-t border-slate-100 w-full text-left">
                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                       Keterangan Pengiriman
+                       Catatan
                      </p>
-                     <p className="text-[10px] font-bold text-slate-600 italic max-w-lg leading-relaxed">"{sjMeta.remarks}"</p>
+                     <p className="text-[10px] font-bold text-slate-600 italic max-w-lg leading-relaxed whitespace-pre-line">{poNotes}</p>
                   </div>
                 )}
               </div>
             )}
           </div>
         </div>
+
+        {/* Dialog Pilihan Bagikan PO (hanya untuk Purchase Order) */}
+        {!isSuratJalan && isShareMenuOpen && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setIsShareMenuOpen(false)}
+          >
+            <div
+              className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 py-5 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-tighter">Bagikan PO</h3>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Pilih cara</p>
+                </div>
+                <button
+                  onClick={() => setIsShareMenuOpen(false)}
+                  className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-2">
+                <button
+                  onClick={handleSharePOWhatsApp}
+                  className="w-full flex items-center gap-4 p-4 text-left bg-white border border-slate-100 rounded-2xl hover:bg-slate-50 active:scale-[0.99] transition-all"
+                >
+                  <span className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center shrink-0">
+                    <MessageCircle size={18} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-black text-slate-900 uppercase tracking-wider">WhatsApp</span>
+                    <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                      Pilih chat dari daftar di perangkat
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  onClick={handleSharePODownload}
+                  className="w-full flex items-center gap-4 p-4 text-left bg-white border border-slate-100 rounded-2xl hover:bg-slate-50 active:scale-[0.99] transition-all"
+                >
+                  <span className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                    <Download size={18} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-black text-slate-900 uppercase tracking-wider">Download PDF</span>
+                    <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                      Simpan {pdfFileName}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
   );
 };
