@@ -470,7 +470,13 @@ const App: React.FC = () => {
                         setEditingOrderExtern={setEditingOrder}
                         onAddOrder={(o) => {
                           setState(prev => ({ ...prev, orders: [o, ...prev.orders] }));
-                          return dbService.upsertOrder(o).then(() => loadAllData(true)).catch(e => { showNotify(e.message, "error"); throw e; });
+                          return dbService.upsertOrder(o).then((saved) => {
+                            if (!o.invoiceNumber && saved?.invoice_number) {
+                              const invoiceNumber = saved.invoice_number;
+                              setState(prev => ({ ...prev, orders: prev.orders.map(x => x.id === o.id ? { ...x, invoiceNumber } : x) }));
+                            }
+                            return loadAllData(true);
+                          }).catch(e => { showNotify(e.message, "error"); throw e; });
                         }} 
                         onUpdateOrder={(o) => {
                           setState(prev => ({

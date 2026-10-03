@@ -24,6 +24,15 @@ const parseItemNameAndUnit = (fullName: string) => {
   return { name: fullName, unit: 'Pcs' };
 };
 
+// Tanggal Surat Jalan disimpan sebagai text (biasanya YYYY-MM-DD). Bila isinya
+// bukan tanggal yang bisa dibaca, tampilkan mentah supaya tidak ada info hilang.
+const formatTanggalDokumen = (value?: string | null) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
 const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotify, sessionQtys, sessionDP, onBack, autoDownload, customers }) => {
   const invoiceRef = useRef<HTMLDivElement>(null);
   const [downloadTriggered, setDownloadTriggered] = useState(false);
@@ -73,6 +82,8 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
 
   const poAddress = (order.customerAddress || customer?.address || '').trim();
   const poPhone = (customerPhone || '').trim();
+
+  const suratJalanDocs = order.documents?.surat_jalan ?? [];
 
   const captureInvoice = useCallback(async () => {
     if (!invoiceRef.current) return null;
@@ -780,6 +791,51 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, mode = 'full', onNotif
             )}
           </div>
         </div>
+
+        {/* PO -> Surat Jalan -> Nota. Sengaja berada DI LUAR div invoiceRef
+            (dan dibawa class no-print) supaya tidak ikut canvas PDF/JPG,
+            printArea, maupun print. */}
+        {!isSuratJalan && (
+          <div className="no-print bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-5">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-50">
+              <FileText size={13} className="text-indigo-500" />
+              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Dokumen Terkait</h3>
+            </div>
+
+            {suratJalanDocs.length === 0 ? (
+              <p className="pt-3 text-[10px] font-bold text-slate-400">Belum ada Surat Jalan</p>
+            ) : (
+              <ul className="divide-y divide-slate-50">
+                {suratJalanDocs.map(sj => {
+                  const notaDocs = sj.nota ?? [];
+                  const tanggal = formatTanggalDokumen(sj.tanggal);
+                  return (
+                    <li key={sj.id} className="py-3">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Surat Jalan</p>
+                      <div className="mt-1 flex items-baseline justify-between gap-3">
+                        <span className="min-w-0 text-xs font-black text-slate-900 break-all">{sj.nomor}</span>
+                        {tanggal && (
+                          <span className="shrink-0 text-[9px] font-bold text-slate-400 whitespace-nowrap">{tanggal}</span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 ml-3 pl-3 border-l-2 border-indigo-100 space-y-0.5">
+                        {notaDocs.length === 0 ? (
+                          <p className="text-[10px] font-bold text-slate-400">Belum ada Nota</p>
+                        ) : (
+                          notaDocs.map(n => (
+                            <p key={n.id} className="text-[10px] font-bold text-slate-600 break-all">
+                              <span className="text-slate-400">Nota:</span> {n.nomor}
+                            </p>
+                          ))
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* Dialog Pilihan Bagikan PO (hanya untuk Purchase Order) */}
         {!isSuratJalan && isShareMenuOpen && (

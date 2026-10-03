@@ -156,37 +156,25 @@ const ManualInvoiceManager: React.FC<Props> = ({ products, customers, onNotify, 
 
   const handlePreview = (e: React.FormEvent) => {
     e.preventDefault();
-    const order = activeTab === 'invoice' ? createManualOrder() : createManualSuratJalan();
-    setManualOrder(order);
+    setManualOrder(createManualOrder());
     setIsPreview(true);
   };
 
   const handleSave = async () => {
     if (!onAddOrder) return;
-    const order = manualOrder || (activeTab === 'invoice' ? createManualOrder() : createManualSuratJalan());
-    
+    const order = manualOrder || createManualOrder();
+
     setIsSubmitting(true);
     try {
       await onAddOrder(order);
-      const successMsg = activeTab === 'invoice' ? "Nota Manual Berhasil Disimpan" : "Surat Jalan Manual Berhasil Disimpan";
-      onNotify(successMsg, "success");
-      
+      onNotify("Nota Manual Berhasil Disimpan", "success");
+
       // Reset inputs after saving
-      if (activeTab === 'invoice') {
-        setCustomerName('');
-        setCustomerAddress('');
-        setNotes('');
-        setDownPayment(undefined);
-        setItems([{ id: `item_${Date.now()}_1`, name: '', quantity: undefined, unitPrice: undefined }]);
-      } else {
-        setSjNumber(`SJ-${Date.now().toString().slice(-6)}`);
-        setSjCustomerName('');
-        setSjCustomerAddress('');
-        setSjDriver('');
-        setSjVehiclePlate('');
-        setSjNotes('');
-        setSjItems([{ id: `item_${Date.now()}_1`, name: '', quantity: undefined, unit: 'BAL' }]);
-      }
+      setCustomerName('');
+      setCustomerAddress('');
+      setNotes('');
+      setDownPayment(undefined);
+      setItems([{ id: `item_${Date.now()}_1`, name: '', quantity: undefined, unitPrice: undefined }]);
       setIsPreview(false);
       setManualOrder(null);
     } catch (err: any) {
@@ -236,18 +224,6 @@ const ManualInvoiceManager: React.FC<Props> = ({ products, customers, onNotify, 
         >
           <FilePlus size={15} />
           Nota Manual
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('surat_jalan')}
-          className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${
-            activeTab === 'surat_jalan'
-              ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100'
-              : 'bg-white border border-slate-100 text-slate-500 hover:bg-slate-50 shadow-sm'
-          }`}
-        >
-          <Truck size={15} />
-          Surat Jalan Manual
         </button>
       </div>
 

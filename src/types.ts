@@ -63,6 +63,31 @@ export interface OrderItem {
   costPrice?: number;
 }
 
+// Dokumen resmi hanya dibaca dari Input Surat Jalan (public.surat_jalan /
+// public.nota). Buku-Po tidak membuat maupun mengubah isinya.
+export interface NotaDocument {
+  id: string;
+  nomor: string;
+  surat_jalan_id: string | null;
+  surat_jalan_nomor: string;
+  tanggal: string;
+  created_at: string;
+}
+
+export interface SuratJalanDocument {
+  id: string;
+  nomor: string;
+  tanggal: string;
+  created_at: string;
+  order_id: string | null;
+  invoice_number: string | null;
+  nota: NotaDocument[];
+}
+
+export interface OrderDocuments {
+  surat_jalan: SuratJalanDocument[];
+}
+
 export interface Order {
   id: string;
   invoiceNumber: string;
@@ -80,6 +105,7 @@ export interface Order {
   total: number;
   notes?: string;
   depositUsed?: number; // Melacak berapa banyak saldo deposit yang dipotong untuk order ini
+  documents?: OrderDocuments; // PO -> SJ -> NT (read-only dari Input Surat Jalan)
 }
 
 export type ViewType = 'dashboard' | 'customers' | 'products' | 'orders' | 'invoice_detail' | 'reports' | 'manual_invoice' | 'dp_tracker' | 'invoice_book' | 'settings';

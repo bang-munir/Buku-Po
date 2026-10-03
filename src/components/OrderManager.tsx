@@ -158,7 +158,7 @@ const OrderManager: React.FC<Props> = ({
 
       const orderData: any = {
         id: (editingOrder?.id && editingOrder.id.length > 10) ? editingOrder.id : `ord_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        invoiceNumber: editingOrder ? editingOrder.invoiceNumber : `INV-${Date.now().toString().slice(-6)}`,
+        invoiceNumber: editingOrder ? editingOrder.invoiceNumber : '',
         customerId: selectedCustomerId,
         customerName: selectedCustomer!.name,
         customerType: selectedCustomer!.type,

@@ -185,18 +185,37 @@ export const dbService = {
         amount: Number(p.amount) || 0,
         date: p.date,
         note: p.note
-      }))
+      })),
+      // API lama / payload tanpa field ini tetap aman: selalu jadi array kosong.
+      documents: {
+        surat_jalan: (((o.documents || {}).surat_jalan) || []).map((s: any) => ({
+          id: s.id,
+          nomor: s.nomor,
+          tanggal: s.tanggal,
+          created_at: s.created_at,
+          order_id: s.order_id ?? null,
+          invoice_number: s.invoice_number ?? null,
+          nota: (s.nota || []).map((n: any) => ({
+            id: n.id,
+            nomor: n.nomor,
+            surat_jalan_id: n.surat_jalan_id ?? null,
+            surat_jalan_nomor: n.surat_jalan_nomor,
+            tanggal: n.tanggal,
+            created_at: n.created_at
+          }))
+        }))
+      }
     }));
   },
 
   async upsertOrder(order: Order) {
     try {
       const orderId = order.id || gen_uuid();
-      console.log('Menyimpan pesanan:', order.invoiceNumber, 'ID:', orderId);
+      console.log('Menyimpan pesanan:', order.invoiceNumber || '(nomor baru)', 'ID:', orderId);
 
       const payload = {
         id: orderId,
-        invoice_number: order.invoiceNumber,
+        invoice_number: order.invoiceNumber || '',
         customer_id: order.customerId,
         customer_name: order.customerName || '',
         customer_type: order.customerType || 'Jakarta',
@@ -237,8 +256,10 @@ export const dbService = {
         throw new Error(err.error || 'Gagal simpan order');
       }
 
-      console.log('BERHASIL SIMPAN:', order.invoiceNumber);
-      return true;
+      const saved = await res.json().catch(() => ({}));
+      const savedInvoiceNumber = saved.invoice_number || order.invoiceNumber;
+      console.log('BERHASIL SIMPAN:', savedInvoiceNumber);
+      return { invoice_number: savedInvoiceNumber };
     } catch (error: any) {
       console.error('FATAL SAVE ERROR:', error);
       throw error;
